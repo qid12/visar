@@ -1,5 +1,5 @@
 import os
-import json
+import json 
 import numpy as np
 import pandas as pd
 
@@ -265,16 +265,14 @@ class visar_model:
         """
         #self.generate_task_df(train_loader, prev_model, valid_mask)
         gradient_dict = {}
-        for item in self.tasks:
-            gradient_dict[item] = np.array(self.task_df[item].values)
-
+        
         # generate mol 
         mol = Chem.MolFromSmiles(smiles_string)
         highlit_pos_dict = {}
         highlit_neg_dict = {}
         atomsToUse_dict = {}
-
-        for item in self.tasks:
+        for item in self.task_df.columns.tolist():
+            gradient_dict[item] = np.array(self.task_df[item].values)
             gradient = gradient_dict[item]
             # get the bit info of the Morgan fingerprint
             bi = {}
