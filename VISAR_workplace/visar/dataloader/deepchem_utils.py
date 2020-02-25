@@ -25,36 +25,11 @@ from rdkit.Chem import PandasTools
 
 import cairosvg
 from scipy.stats import pearsonr
+
+from visar.visar_utils import extract_clean_dataset
+
+warnings.filterwarnings("ignore")
 #-------------------------------------
-# data loader
-
-def extract_clean_dataset(subset_names, MT_df, add_features = None, id_field = 'molregno', smiles_field = 'salt_removed_smi'):
-    '''
-    input: subset_names --- a list of the task names
-           MT_df --- pd.DataFrame of the total raw data
-    output: subset of raw data， containing only the selected tasks
-    '''
-    extract_column = subset_names + [id_field, smiles_field]
-    sub_df = MT_df[extract_column]
-    
-    n_tasks = len(subset_names)
-    mask_mat = np.sum(np.isnan(np.matrix(MT_df[subset_names])), axis = 1).reshape(-1).flatten()
-    mask_new = np.array(mask_mat < n_tasks)[0]
-    
-    if add_features is None:
-        extract_df = sub_df.loc[mask_new]
-    else:
-        new_sub_df = MT_df[extract_column + add_features]
-        extract_df = new_sub_df.loc[mask_new]
-
-        # normalization!!
-        all_fields = subset_names + add_features
-        for i in range(len(all_fields)):
-            temp_mask = ~np.isnan(np.array(extract_df[all_fields[i]].tolist()))
-            extract_df[all_fields[i]].loc[temp_mask] = preprocessing.scale(extract_df[all_fields[i]].dropna())
-        
-    print('Extracted dataset shape: ' + str(extract_df.shape))
-    return extract_df
 
 def prepare_dataset(para_dict):
     '''

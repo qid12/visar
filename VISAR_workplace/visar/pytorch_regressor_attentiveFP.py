@@ -4,111 +4,52 @@ import torch.nn.functional as F
 import torch.optim as optim
 from sklearn.metrics import r2_score, mean_squared_error
 from visar.visar_utils import FP_dim, update_bicluster 
-from visar.pytorch_models import DNN_regressor
+from visar.AttentiveLayers import Fingerprint
 
 #================================================
 
-class pytorch_DNN_model(visar):
+class pytorch_AFP_model(pytorch_DNN_model):
     def __init__(self, para_dict, *args, **kwargs):
         super().__init__(self, para_dict, *args, **kwargs)
 
-        # set default parameters
-        if 'dropouts' not in para_dict:
-            self.para_dict['dropouts'] = 0.5
-        if 'layer_sizes' not in para_dict:
-            self.para_dict['layer_sizes'] = [128, 64, 1]
+        self.num_atom_features = self.para_dict['num_atom_features']
+        self.num_bond_features = self.para_dict['num_bond_features']
 
-        # set data related parameters
-        self.id_field = self.para_dict['id_field']
-
-        # extract model_related parameters
-        self.model_flag = self.para_dict['model_architecture']
-        if self.para_dict['add_features'] is None:
-            self.n_tasks = len(self.para_dict['task_list'])
-            self.tasks = self.para_dict['task_list']
-        else:
-            self.n_tasks = len(self.para_dict['task_list']) + len(self.para_dict['add_features'])
-            self.tasks = self.para_dict['task_list']
-        self.n_features = FP_dim[self.para_dict['feature_type']]
-
-        self.dropout = self.para_dict['dropouts']
-        self.layer_sizes = self.para_dict['layer_sizes']
-        self.n_layers = len(self.layer_sizes)
-
-        # get training params
-        self.lr = self.para_dict['learning_rate']
-        self.epoch_num = self.para_dict['epoch_num']
-        self.epoch = self.para_dict['epoch']
-
+        self.radius = self.para_dict['radius']
+        self.T = self.para_dict['T']
+        self.fingerprint_dim = self.para_dict['fingerprint_dim']
+        self.output_units_num = self.para_dict['output_units_num']
 
     def model_init(self):
-        self.model = DNN_regressor(self.n_features, self.layer_sizes, self.dropout,
-                                   epoch = self.epoch_num, lr = self.lr)
-
-    def fit(self, train_loader, test_loader):
-
-        train_evaluation = []
-        test_evaluation = []
-        for iteration in range(self.epoch_num):
-            self.model.fit(train_loader)
-
-            print('======== Iteration %d ======' % iteration)
-            print("Evaluating model")
-            train_scores = self.evaluate(train_loader)
-            train_evaluation.append(train_scores[0])
-            print("Training R2 score: %.3f" % np.mean(np.array(train_scores[0])))
-            test_scores = self.evaluate(test_loader)
-            test_evaluation.append(test_scores[0])
-            print("Test R2 score: %.3f" % np.mean(np.array(test_scores[0])))
-        
-            # save evaluation scores
-            train_df = pd.DataFrame(np.array(train_evaluation))
-            test_df = pd.DataFrame(np.array(test_evaluation))
-            train_df.columns = self.tasks
-            test_df.columns = self.tasks
-            train_df.to_csv(self.save_path + '/train_log.csv', index = None)
-            test_df.to_csv(self.save_path + '/test_log.csv', index = None)
-
-            # save model
-            self.save_model('Epoch_' + str(e+1), self.data_dict())
-
+        self.model = Fingerprint(self.radius, self.T, 
+                                 self.num_atom_features, self.num_bond_features,
+                                 self.fingerprint_dim, self.output_units_num, 
+                                 self.dropout, self.batch_normalization, momentum = 0.5)
 
     def evaluate(self, data_loader):
         outputs = []
         labels = []
         weights = []
-        for X, y, w, _ in data_loader:
-            outputs.append(self.model.predict(X))
+        for x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids in data_loader:
+            outputs.append(self.model.predict(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask))
             labels.append(y)
             weights.append(w)
-
-        Xs = np.concatenate(outputs, axis = 0)
-        ys = np.concatenate(labels, axis = 0)
+        y_pred = np.concatenate(outputs, axis = 0)
+        y_true = np.concatenate(labels, axis = 0)
         ws = np.concatenate(w, axis = 0)
-        return self.model.evaluate(Xs, ys, ws)
+        return self.model.evaluate(y_pred, y_true, ws)
 
     def predict(self, data_loader):
-        Xs = []
-        for X, _, _, _ in data_loader:
-            Xs.append(X)
-        Xs = np.concatenate(Xs, axis = 0)
-        return self.model.predict(Xs)
+    	x_atom = np.concatenate([i for i, _, _, _, _, _, _, _ in data_loader])
+    	x_bonds = np.concatenate([i for _, i, _, _, _, _, _, _ in data_loader])
+    	x_atom_index = np.concatenate([i for _, _, i, _, _, _, _, _ in data_loader])
+    	x_bond_index = np.concatenate([i for _, _, _, i, _, _, _, _ in data_loader])
+    	x_mask = np.concatenate([i for _, _, _, _, i, _, _, _ in data_loader])
+    	return self.model.predict(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
 
-    def save_model(self, filename):
-        torch.save(self.model, os.path.join(self.save_path, filename))
-
-    def load_model(self):
-
-        for e in range(self.epoch, 0, -1):
-            if os.path.isfile(os.path.join(self.save_path, 'Epoch_' + str(e))):
-                # print(os.path.join(self.save_path, 'Epoch_' + str(e)))
-                self.load_state_dict(torch.load(os.path.join(self.save_path, 'Epoch_' + str(e))))
-                return e
-        return 0
-
-    #----------------------------------
-    def get_coords(self, n_layer, train_loader, custom_loader = None, mode = 'default'):
-        if mode == 'default':
+#---------------------------------------------
+	def get_coords(self, n_layer, train_loader, custom_loader = None, mode = 'default'):
+		if mode == 'default':
             transfer_values = []
             for Xs, _, _, _, _ in train_loader:
                 transfer_values.append(self.model.get_transfer_values(Xs, n_layer))
@@ -134,9 +75,9 @@ class pytorch_DNN_model(visar):
             else:
                 return value_reduced, None
 
-    def generate_compound_df(self, data_loader, df, coord_values, id_field):
+	def generate_compound_df(self, data_loader, df, coord_values, id_field):
         data_loader_ids = []
-        for _, _, _, ids, _ in data_loader:
+        for _, _, _, ids, _ in data_loader:  ##!!!
             data_loader_ids += ids
 
         pred_mat = self.predict(Xs)
@@ -222,4 +163,10 @@ class pytorch_DNN_model(visar):
             compound_df2.to_csv(output_prefix + 'compound_custom_df.csv', index = False)
         
         return
+
+
+
+
+
+
 
