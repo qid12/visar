@@ -26,7 +26,7 @@ from rdkit.Chem import PandasTools
 import cairosvg
 from scipy.stats import pearsonr
 
-from visar.visar_utils import extract_clean_dataset
+from visar.utils.visar_utils import extract_clean_dataset
 
 warnings.filterwarnings("ignore")
 #-------------------------------------

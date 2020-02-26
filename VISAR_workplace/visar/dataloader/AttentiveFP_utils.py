@@ -1,11 +1,12 @@
 import pandas as pd
 from rdkit import Chem
-from visar.AttentiveFP.getFeatures import (
-    save_smiles_dicts,
-    get_smiles_array)
 from torch.utils.data import DataLoader, Dataset
 import pickle
-from visar.visar_utils import extract_clean_dataset
+
+from visar.utils.getFeatures import (
+    save_smiles_dicts,
+    get_smiles_array)
+from visar.utils.visar_utils import extract_clean_dataset
 import pdb
 import torch
 import numpy as np
@@ -40,7 +41,7 @@ class feature_dict_dataset(Dataset):
 
 def collate_fn(data):
     x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids = zip(*data)
-    return [torch.Tensor(x_atom).squeeze(), torch.Tensor(x_bonds).squeeze(),torch.cuda.LongTensor(x_atom_index).squeeze(), torch.cuda.LongTensor(x_bond_index).squeeze(), torch.Tensor(x_mask).squeeze()], torch.Tensor(y).squeeze(), torch.ByteTensor(w).squeeze(), list(ids)
+    return [torch.Tensor(x_atom).squeeze(), torch.Tensor(x_bonds).squeeze(),torch.LongTensor(x_atom_index).squeeze(), torch.LongTensor(x_bond_index).squeeze(), torch.Tensor(x_mask).squeeze()], torch.Tensor(y).squeeze(), torch.BoolTensor(w).squeeze(), list(ids)
 
 def feature_dict_loader(para_dict):
     fname = para_dict['dataset_file']

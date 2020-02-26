@@ -3,25 +3,23 @@ from torch import nn
 import torch.nn.functional as F
 import torch.optim as optim
 from sklearn.metrics import r2_score, mean_squared_error
+import pdb
 
-class DNN_regressor(nn.Module):
+class DNNx2_regressor(nn.Module):
 
-    def __init__(self, n_features, layer_nodes, dropouts, 
-                 GPU = False, epoch = 20, lr = 0.001, optimizer = 'RMSprop'):
-        super(DNN_regressor, self).__init__(n_features, layer_nodes, dropouts)
+    def __init__(self, n_features, layer_nodes, GPU = False):
+        super(DNNx2_regressor, self).__init__()
 
         self.GPU = GPU
-        self.epoch = epoch
-        self.lr = lr
-        self.optimizer = optimizer
 
         self.n_layers = len(layer_nodes)
-        self.fcs = []
-        self.fcs.append(nn.Linear(in_features = n_features,
-                        out_features = self.layer_nodes[0]))
-        for i in range(1, self.n_layers):
-            self.fcs.append(nn.Linear(in_features = self.layer_nodes[i-1],
-                                      out_features = self.layer_nodes[i]))
+        self.layer_nodes = layer_nodes
+        self.fc0 = nn.Linear(in_features = n_features,
+                            out_features = self.layer_nodes[0])
+        self.fc1 = nn.Linear(in_features = self.layer_nodes[0],
+                             out_features = self.layer_nodes[1])
+        self.fc2 = nn.Linear(in_features = self.layer_nodes[1],
+                             out_features = self.layer_nodes[2])
 
         if self.GPU:
             self.cuda()
@@ -32,33 +30,34 @@ class DNN_regressor(nn.Module):
         if self.GPU:
             X = Xs.cuda()
         else:
-            X = torch.FloatTensor(Xs)
+            X = Xs
         
         X = torch.flatten(X, start_dim = 1)
 
-        out = self.fcs[0](X)
-        for i in range(1, self.n_layers):
-            out = F.dropout(F.relu(self.fcs[i](out)), p = dropouts)
+        out = self.fc0(X)
+        out = F.dropout(F.relu(self.fc1(out)), p = dropouts)
+        out = F.dropout(F.relu(self.fc2(out)), p = dropouts)
 
         return out
 
-    def forward4pred(self, Xs):
+    def forward4predict(self, Xs):
         batch_size = len(Xs)
 
         if self.GPU:
             X = Xs.cuda()
         else:
-            X = torch.FloatTensor(Xs)
+            X = Xs
 
         X = torch.flatten(X, start_dim = 1)
 
-        out = self.fcs[0](X)
-        for i in range(0, self.n_layers):
-            out = F.relu(self.fcs[i](out))
+        out = self.fc0(X)
+        out = F.relu(self.fc1(out))
+        out = F.relu(self.fc2(out))
+            
 
         return out
 
-    def forward4optim(self, Xs):
+    def forward4viz(self, Xs):
         batch_size = len(Xs)
 
         # turns off the gradient descent for all params
@@ -68,18 +67,18 @@ class DNN_regressor(nn.Module):
         if self.GPU:
             X = Xs.cuda()
         else:
-            X = torch.FloatTensor(Xs)
+            X = Xs
         
         X = torch.flatten(X, start_dim = 1)
         self.X_variable = torch.autograd.Variable(X, requires_grad = True)
 
-        out = self.fcs[0](self.X_variable)
-        for i in range(1, self.n_layers):
-            out = F.relu(self.fcs[i](out))
+        out = self.fc0(self.X_variable)
+        out = F.relu(self.fc1(out))
+        out = F.relu(self.fc2(out))
 
         return out
 
-    def get_transfer_values(self, Xs, n_layer = 2):
+    def get_transfer_values(self, Xs, hidden_layer = 1):
         batch_size = len(Xs)
 
         if self.GPU:
@@ -88,83 +87,46 @@ class DNN_regressor(nn.Module):
             X = torch.FloatTensor(Xs)
 
         X = torch.flatten(X, start_dim = 1)
-
-        for i in range(0, n_layer):
-            out = F.relu(self.fcs[i])
-        return out
+        
+        out = F.relu(self.fc0(X))
+        if hidden_layer == 1:
+            transfer_value = out
+        elif hidden_layer == 2:
+            out = F.relu(self.fc1(out))
+            transfer_value = out
+        if self.GPU:
+            transfer_value = transfer_value.detach().cpu().numpy()
+        else:
+            transfer_value = transfer_value.detach().numpy()
+        return transfer_value
 
     def predict(self, Xs):
         self.eval()
-        with torch.no_grad():
-            outputs = self.forward4pred(Xs)
+        outputs = self.forward4predict(Xs)
         if self.GPU:
             return outputs.cpu().detach().numpy()
         else:
             return outputs.detach().numpy()
 
-    def get_gradient_task(self, Xs, mask, task):
-        out = self.forward4optim(Xs)
+    def get_gradient_task(self, Xs, mask, task = None):
+        out = self.forward4viz(Xs)
         if task is not None:
-            act = out[:,task][:,mask]
+            act = out[mask[:,task],task]
         else:
-            act = out[mask].sum()  ##!!!!
+            act = out[mask]  ##!!!!
         act.sum().backward()
 
         return self.X_variable.grad
-
-    def loss_func(self, input, target, mask):
-        out = (input[mask] - target[mask])**2
-        loss = out.mean()
-
-        return loss
-
-    def optimizers(self):
-        if self.optimizer == 'Adam':
-            return optim.Adam(self.parameters(), lr=self.lr)
-
-        elif self.optimizer == 'RMSprop':
-            return optim.RMSprop(self.parameters(), lr=self.lr)
-
-        elif self.optimizer == 'SGD':
-            return optim.SGD(self.parameters(), lr=self.lr)
-
-    def fit(self, data_loader):
-        self.train()
-        optimizer = self.optimizers()
-
-        for e in range(saved_epoch, self.epoch):
-            total_loss = 0
-            outputs_train = []
-
-            for features, labels, mask, _ in data_loader:
-                if self.GPU:
-                    y = torch.cuda.FloatTensor(labels)
-                else:
-                    y = torch.FloatTensor(labels)
-
-                logps = self.forward(features)
-                loss = self.loss_func(logps, y, mask)
-                total_loss += loss
-
-                if self.GPU:
-                    outputs_train.append(logs.cpu().detach().numpy())
-                else:
-                    outputs_train.append(logps.detach().numpy())
-
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-            print('Epoch: %d Loss=%.3f' % (e+1, total_loss))
-
-        
-        values = np.concatenate([i for _, i, _, _ in data_loader])
-        masks = np.concatenate([i for _, _, i, _ in data_loader])
-        self.evaluate(np.concatenate(outputs_train), values, masks)
     
     def evaluate(self, outputs, values, mask):
+        outputs = torch.FloatTensor(outputs)
+            
         if len(values.shape) == 1 or values.shape[1] == 1:
             y_pred = outputs.flatten()[mask]
             y_true = values.flatten()[mask]
+            
+            if self.GPU:
+                y_pred = y_pred.cpu().numpy()
             r2 = r2_score(y_true, y_pred)
             mse = mean_squared_error(y_true, y_pred)
 
@@ -174,17 +136,18 @@ class DNN_regressor(nn.Module):
             r2_store = []
             mse_store = []
             for i in range(values.shape[1]):
-                y_pred = outputs[:,i].flatten()[mask[:,i]]
-                y_true = values[:,i].flatten()[mask[:,i]]
+                y_pred = outputs[mask[:,i],i].flatten()
+                y_true = values[mask[:,i],i].flatten()
+                if self.GPU:
+                    y_pred = y_pred.cpu().numpy()
                 r2_store.append(r2_score(y_true, y_pred))
                 mse_store.append(mean_squared_error(y_true, y_pred))
 
-                print(r2_store)
-                print(mse_store)
+            print(r2_store)
+            print(mse_store)
 
-            return r2_store, mse_store   
+            return r2_store, mse_store  
 
-    #-----------------------------------------
-
-
-
+        
+        
+        

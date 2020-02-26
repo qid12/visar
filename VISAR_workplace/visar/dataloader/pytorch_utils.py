@@ -4,7 +4,7 @@ import pandas as pd
 from torch.utils.data import DataLoader, Dataset
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from visar.visar_utils import extract_clean_dataset
+from visar.utils.visar_utils import extract_clean_dataset
 
 class compound_dataset(Dataset):
     def __init__(self, dataset, smiles_field, id_field, task, FP_type = 'Morgan'):
@@ -51,7 +51,7 @@ class compound_dataset(Dataset):
 
 def collate_fn(data):
     X, y, w, ids = zip(*data)
-    return torch.tensor(X), torch.tensor(y), torch.ByteTensor(w), list(ids)
+    return torch.FloatTensor(X), torch.tensor(y), torch.BoolTensor(w), list(ids)
 
 
 def compound_FP_loader(para_dict):

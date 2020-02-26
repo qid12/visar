@@ -48,6 +48,50 @@ class pytorch_AFP_model(pytorch_DNN_model):
     	return self.model.predict(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
 
 #---------------------------------------------
+    def optimizers(self):
+        return optim.Adam(model.parameters(), 10**-learning_rate, 
+                           weight_decay=10**-weight_decay)
+    
+    def loss_func(self, input, target, mask):
+        out = (input[mask] - target[mask])**2
+        loss = out.mean()  #*ratio_list[i]**2
+
+        return loss
+
+    def fit(self, data_loader):
+        optimizer = self.optimizers()
+        total_loss = 0
+        for x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids in data_loader:
+            atoms_prediction, mol_prediction = self.forward(torch.Tensor(x_atom), torch.Tensor(x_bonds),
+                                                                  torch.cuda.LongTensor(x_atom_index),
+                                                                  torch.cuda.LongTensor(x_bond_index),
+                                                                  torch.Tensor(x_mask))
+
+            loss = self.loss_func(self, mol_prediction, y, w)
+            total_loss += loss
+
+            optimizer.zero_grad()  
+            loss.backward()              
+            optimizer.step()
+
+        return total_loss
+
+    #-----------------------------------
+
+    def save_model(self, filename, model):
+        torch.save(model, os.path.join(self.save_path, filename))
+
+    def load_model(self):
+
+        for e in range(self.para_dict['epoch'], 0, -1):
+            if os.path.isfile(os.path.join(self.save_path, 'Epoch_' + str(e))):
+                # print(os.path.join(self.save_path, 'Epoch_' + str(e)))
+                self.load_state_dict(torch.load(os.path.join(self.save_path, 'Epoch_' + str(e))))
+                return e
+        return 0
+    
+
+#---------------------------------------------
 	def get_coords(self, n_layer, train_loader, custom_loader = None, mode = 'default'):
 		if mode == 'default':
             transfer_values = []

@@ -44,6 +44,56 @@ class pytorch_DNN_model(visar):
     def model_init(self):
         self.model = DNN_regressor(self.n_features, self.layer_sizes, self.dropout,
                                    epoch = self.epoch_num, lr = self.lr)
+    
+    #---------------------    
+    def fit(self, data_loader):
+        self.train()
+        optimizer = self.optimizers()
+
+        for e in range(saved_epoch, self.epoch):
+            total_loss = 0
+            outputs_train = []
+
+            for features, labels, mask, _ in data_loader:
+                logps = self.forward(features)
+                loss = self.loss_func(logps, y, mask)
+                total_loss += loss
+
+                if self.GPU:
+                    outputs_train.append(logs.cpu().detach().numpy())
+                else:
+                    outputs_train.append(logps.detach().numpy())
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+            print('Epoch: %d Loss=%.3f' % (e+1, total_loss))
+
+        
+        values = np.concatenate([i for _, i, _, _ in data_loader])
+        masks = np.concatenate([i for _, _, i, _ in data_loader])
+        self.evaluate(np.concatenate(outputs_train), values, masks)
+    
+        def loss_func(self, output, target, mask):
+        pdb.set_trace()
+        if self.GPU:
+            target = target.cuda()
+            mask = mask.cuda()
+        out = (output[mask] - target[mask])**2
+        loss = out.mean()
+
+        return loss
+
+    def optimizers(self):
+        if self.optimizer == 'Adam':
+            return optim.Adam(self.parameters(), lr=self.lr)
+
+        elif self.optimizer == 'RMSprop':
+            return optim.RMSprop(self.parameters(), lr=self.lr)
+
+        elif self.optimizer == 'SGD':
+            return optim.SGD(self.parameters(), lr=self.lr)
+    #-----------------------------
 
     def fit(self, train_loader, test_loader):
 

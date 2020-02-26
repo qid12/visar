@@ -3,14 +3,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn import init
+from sklearn.metrics import r2_score, mean_squared_error
 import pdb
 
 class Fingerprint(nn.Module):
 
     def __init__(self, radius, T, input_feature_dim, input_bond_dim,\
             fingerprint_dim, output_units_num, p_dropout, 
-            batch_normalization = False, momentum = 0.5):
+            batch_normalization = False, momentum = 0.5,GPU = False):
         super(Fingerprint, self).__init__()
+        self.GPU = GPU
         self.do_bn = batch_normalization
         self.bns = []
 
@@ -85,12 +87,14 @@ class Fingerprint(nn.Module):
         attend_mask = atom_degree_list.clone()
         attend_mask[attend_mask != mol_length-1] = 1
         attend_mask[attend_mask == mol_length-1] = 0
-        attend_mask = attend_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
+        attend_mask = attend_mask.unsqueeze(-1)
+        #attend_mask = attend_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
 
         softmax_mask = atom_degree_list.clone()
         softmax_mask[softmax_mask != mol_length-1] = 0
         softmax_mask[softmax_mask == mol_length-1] = -9e8 # make the softmax value extremly small
-        softmax_mask = softmax_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
+        softmax_mask = softmax_mask.unsqueeze(-1)
+        #softmax_mask = softmax_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
 
         batch_size, mol_length, max_neighbor_num, fingerprint_dim = neighbor_feature.shape
         atom_feature_expand = atom_feature.unsqueeze(-2).expand(batch_size, mol_length, max_neighbor_num, fingerprint_dim)
@@ -159,7 +163,7 @@ class Fingerprint(nn.Module):
         mol_softmax_mask = atom_mask.clone()
         mol_softmax_mask[mol_softmax_mask == 0] = -9e8
         mol_softmax_mask[mol_softmax_mask == 1] = 0
-        mol_softmax_mask = mol_softmax_mask.type(torch.cuda.FloatTensor)
+        #mol_softmax_mask = mol_softmax_mask.type(torch.cuda.FloatTensor)
         
         for t in range(self.T):
             
@@ -212,12 +216,14 @@ class Fingerprint(nn.Module):
         attend_mask = atom_degree_list.clone()
         attend_mask[attend_mask != mol_length-1] = 1
         attend_mask[attend_mask == mol_length-1] = 0
-        attend_mask = attend_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
+        attend_mask = attend_mask.unsqueeze(-1)
+        #attend_mask = attend_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
 
         softmax_mask = atom_degree_list.clone()
         softmax_mask[softmax_mask != mol_length-1] = 0
         softmax_mask[softmax_mask == mol_length-1] = -9e8 # make the softmax value extremly small
-        softmax_mask = softmax_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
+        softmax_mask = softmax_mask.unsqueeze(-1)
+        #softmax_mask = softmax_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
 
         batch_size, mol_length, max_neighbor_num, fingerprint_dim = neighbor_feature.shape
         atom_feature_expand = atom_feature.unsqueeze(-2).expand(batch_size, mol_length, max_neighbor_num, fingerprint_dim)
@@ -296,7 +302,7 @@ class Fingerprint(nn.Module):
         mol_softmax_mask = atom_mask.clone()
         mol_softmax_mask[mol_softmax_mask == 0] = -9e8
         mol_softmax_mask[mol_softmax_mask == 1] = 0
-        mol_softmax_mask = mol_softmax_mask.type(torch.cuda.FloatTensor)
+        #mol_softmax_mask = mol_softmax_mask.type(torch.cuda.FloatTensor)
         
         for t in range(self.T):
             
@@ -325,30 +331,29 @@ class Fingerprint(nn.Module):
             
         return atom_feature_viz, atom_attention_weight_viz, mol_feature_viz, mol_feature_unbounded_viz, mol_attention_weight_viz, mol_prediction
 
-    def get_transfer_values(self, x_atom, x_bonds, x_atom_index, x_bond_index, x_mask):
+    def get_transfer_values(self, x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, n_layer = 0):
         _, _, mol_feature_viz, _, _, _ = self.forward4viz(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
-        return mol_feature_viz[1,:,:]
+        return mol_feature_viz[n_layer].detach().numpy()
 
-    def get_attention_values(self, x_atom, x_bonds, x_atom_index, x_bond_index, x_mask):
+    def get_attention_values(self, x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, n_layer = 0):
         _, _, _, _, mol_attention_weight_viz, _ = self.forward4viz(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
-        return mol_attention_weight_viz
-
-    def loss_func(self, input, target, mask):
-        out = (input[mask] - target[mask])**2
-        loss = out.mean()
-
-        return loss
+        return mol_attention_weight_viz[n_layer].squeeze().detach().numpy()
 
     def predict(self, x_atom, x_bonds, x_atom_index, x_bond_index, x_mask):
         self.eval()
         with torch.no_grad():
-            out = self.forward(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
-        return out.detach().numpy()
+            atom_feature, mol_prediction = self.forward(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
+        return atom_feature.numpy(), mol_prediction
 
     def evaluate(self, outputs, values, mask):
+        outputs = torch.FloatTensor(outputs)
+            
         if len(values.shape) == 1 or values.shape[1] == 1:
             y_pred = outputs.flatten()[mask]
             y_true = values.flatten()[mask]
+            
+            if self.GPU:
+                y_pred = y_pred.cpu().numpy()
             r2 = r2_score(y_true, y_pred)
             mse = mean_squared_error(y_true, y_pred)
 
@@ -358,55 +363,18 @@ class Fingerprint(nn.Module):
             r2_store = []
             mse_store = []
             for i in range(values.shape[1]):
-                y_pred = outputs[:,i].flatten()[mask[:,i]]
-                y_true = values[:,i].flatten()[mask[:,i]]
+                y_pred = outputs[mask[:,i],i].flatten()
+                y_true = values[mask[:,i],i].flatten()
+                if self.GPU:
+                    y_pred = y_pred.cpu().numpy()
                 r2_store.append(r2_score(y_true, y_pred))
                 mse_store.append(mean_squared_error(y_true, y_pred))
 
-                print(r2_store)
-                print(mse_store)
+            print(r2_store)
+            print(mse_store)
 
             return r2_store, mse_store
 
-    def optimizers(self):
-        return optim.Adam(model.parameters(), 10**-learning_rate, 
-                           weight_decay=10**-weight_decay)
 
-    def loss_func(self, input, target, mask):
-        out = (input[mask] - target[mask])**2
-        loss = out.mean()  #*ratio_list[i]**2
 
-        return loss
-
-    def fit(self, data_loader):
-        optimizer = self.optimizers()
-        total_loss = 0
-        for x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids in data_loader:
-            atoms_prediction, mol_prediction = self.forward(torch.Tensor(x_atom), torch.Tensor(x_bonds),
-                                                                  torch.cuda.LongTensor(x_atom_index),
-                                                                  torch.cuda.LongTensor(x_bond_index),
-                                                                  torch.Tensor(x_mask))
-
-            loss = self.loss_func(self, mol_prediction, y, w)
-            total_loss += loss
-
-            optimizer.zero_grad()  
-            loss.backward()              
-            optimizer.step()
-
-        return total_loss
-
-    #-----------------------------------
-
-    def save_model(self, filename, model):
-        torch.save(model, os.path.join(self.save_path, filename))
-
-    def load_model(self):
-
-        for e in range(self.para_dict['epoch'], 0, -1):
-            if os.path.isfile(os.path.join(self.save_path, 'Epoch_' + str(e))):
-                # print(os.path.join(self.save_path, 'Epoch_' + str(e)))
-                self.load_state_dict(torch.load(os.path.join(self.save_path, 'Epoch_' + str(e))))
-                return e
-        return 0
 
