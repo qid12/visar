@@ -80,22 +80,30 @@ para_dict_visar = {
 
 para_dict_pyDNN = {
     'model_name': 'baseline_reg',
-    'task_list': ['T107'],
+    'task_list': ['T107', 'T108'],
     'eval_type': 'regression',
     # input data related params:
     'dataset_file': './data/MT_data_clean_June28.csv',
     'feature_type': 'Morgan',
     'id_field': 'molregno',
     'smiles_field': 'salt_removed_smi',
-    'model_flag': 'ST',
+    'model_flag': 'MT',
     'add_features': None,
     'frac_train': 0.8,
     'rand_seed': 0,
     'batch_size': 100,
     # model architecture related parameters:
-    'baseline_type': 'SVR'
+    'layer_nodes': [128, 64, 2],
+    'dropouts': 0.5,
+    # model training related parameters:
+    'learning_rate': 0.001,
+    'GPU': False,
+    'epoch': 40, # training epoch of each round (saving model at the end of each round)
+    'epoch_num': 2, # how many rounds
+    'optimizer': 'RMSprop',
     # viz file processing related parameters:
-    'model_architecture': 'MT'
+    'model_architecture': 'MT',
+    'hidden_layer': 1,
 }
 
 para_dict_AttentiveFP = {
@@ -119,6 +127,9 @@ para_dict_AttentiveFP = {
     'fingerprint_dim': 128,
     'output_units_num': 2,
     'dropouts': 0.4,
-    'batch_normalization': True,    
+    'batch_normalization': True,
+    # viz file processing related parameters:
+    'model_architecture': 'MT',
+    'hidden_layer': 1,  
 }
 

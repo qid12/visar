@@ -53,6 +53,9 @@ class Fingerprint(nn.Module):
 
         self.radius = radius
         self.T = T
+        
+        if self.GPU:
+            self.cuda()
 
     def _set_init(self, layer):
         init.normal_(layer.weight, mean=0., std=.1) # could be changed here!
@@ -61,6 +64,12 @@ class Fingerprint(nn.Module):
     def forward(self, atom_list, bond_list, atom_degree_list, bond_degree_list, atom_mask):
         #layer_input = []
         #pre_activation = []
+        if self.GPU:
+            atom_list = atom_list.cuda()
+            bond_list = bond_list.cuda()
+            atom_degree_list = atom_degree_list.cuda()
+            bond_degree_list = bond_degree_list.cuda()
+            atom_mask = atom_mask.cuda()
         
         atom_mask = atom_mask.unsqueeze(2)
         batch_size,mol_length,num_atom_feat = atom_list.size()
@@ -93,8 +102,10 @@ class Fingerprint(nn.Module):
         softmax_mask = atom_degree_list.clone()
         softmax_mask[softmax_mask != mol_length-1] = 0
         softmax_mask[softmax_mask == mol_length-1] = -9e8 # make the softmax value extremly small
-        softmax_mask = softmax_mask.unsqueeze(-1)
-        #softmax_mask = softmax_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
+        if self.GPU:
+            softmax_mask = softmax_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
+        else:
+            softmax_mask = softmax_mask.type(torch.FloatTensor).unsqueeze(-1)
 
         batch_size, mol_length, max_neighbor_num, fingerprint_dim = neighbor_feature.shape
         atom_feature_expand = atom_feature.unsqueeze(-2).expand(batch_size, mol_length, max_neighbor_num, fingerprint_dim)
@@ -163,7 +174,8 @@ class Fingerprint(nn.Module):
         mol_softmax_mask = atom_mask.clone()
         mol_softmax_mask[mol_softmax_mask == 0] = -9e8
         mol_softmax_mask[mol_softmax_mask == 1] = 0
-        #mol_softmax_mask = mol_softmax_mask.type(torch.cuda.FloatTensor)
+        if self.GPU:
+            mol_softmax_mask = mol_softmax_mask.type(torch.cuda.FloatTensor)
         
         for t in range(self.T):
             
@@ -188,9 +200,17 @@ class Fingerprint(nn.Module):
         #mol_prediction = F.relu(self.output(self.dropout(mol_feature)))
         mol_prediction = self.output(self.dropout(mol_feature))
         
-        return atom_feature, mol_prediction
+        #return atom_feature, mol_prediction
+        return mol_prediction
 
-    def forward4viz(self, atom_list, bond_list, atom_degree_list, bond_degree_list, atom_mask):     
+    def forward4viz(self, atom_list, bond_list, atom_degree_list, bond_degree_list, atom_mask):
+        
+        if self.GPU:
+            atom_list = atom_list.cuda()
+            bond_list = bond_list.cuda()
+            atom_degree_list = atom_degree_list.cuda()
+            bond_degree_list = bond_degree_list.cuda()
+            atom_mask = atom_mask.cuda()
 
         atom_mask = atom_mask.unsqueeze(2)
         batch_size,mol_length,num_atom_feat = atom_list.size()
@@ -222,8 +242,10 @@ class Fingerprint(nn.Module):
         softmax_mask = atom_degree_list.clone()
         softmax_mask[softmax_mask != mol_length-1] = 0
         softmax_mask[softmax_mask == mol_length-1] = -9e8 # make the softmax value extremly small
-        softmax_mask = softmax_mask.unsqueeze(-1)
-        #softmax_mask = softmax_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
+        if self.GPU:
+            softmax_mask = softmax_mask.type(torch.cuda.FloatTensor).unsqueeze(-1)
+        else:
+            softmax_mask = softmax_mask.type(torch.FloatTensor).unsqueeze(-1)
 
         batch_size, mol_length, max_neighbor_num, fingerprint_dim = neighbor_feature.shape
         atom_feature_expand = atom_feature.unsqueeze(-2).expand(batch_size, mol_length, max_neighbor_num, fingerprint_dim)
@@ -302,7 +324,8 @@ class Fingerprint(nn.Module):
         mol_softmax_mask = atom_mask.clone()
         mol_softmax_mask[mol_softmax_mask == 0] = -9e8
         mol_softmax_mask[mol_softmax_mask == 1] = 0
-        #mol_softmax_mask = mol_softmax_mask.type(torch.cuda.FloatTensor)
+        if self.GPU:
+            mol_softmax_mask = mol_softmax_mask.type(torch.cuda.FloatTensor)
         
         for t in range(self.T):
             
@@ -333,17 +356,26 @@ class Fingerprint(nn.Module):
 
     def get_transfer_values(self, x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, n_layer = 0):
         _, _, mol_feature_viz, _, _, _ = self.forward4viz(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
-        return mol_feature_viz[n_layer].detach().numpy()
+        if self.GPU:
+            return mol_feature_viz[n_layer].cpu().detach().numpy()
+        else:
+            return mol_feature_viz[n_layer].detach().numpy()
 
     def get_attention_values(self, x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, n_layer = 0):
         _, _, _, _, mol_attention_weight_viz, _ = self.forward4viz(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
-        return mol_attention_weight_viz[n_layer].squeeze().detach().numpy()
+        if self.GPU:
+            return mol_attention_weight_viz[n_layer].squeeze().cpu().detach().numpy()
+        else:
+            return mol_attention_weight_viz[n_layer].squeeze().detach().numpy()
 
     def predict(self, x_atom, x_bonds, x_atom_index, x_bond_index, x_mask):
         self.eval()
         with torch.no_grad():
-            atom_feature, mol_prediction = self.forward(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
-        return atom_feature.numpy(), mol_prediction
+            mol_prediction = self.forward(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
+        if self.GPU:
+            return mol_prediction.cpu()
+        else:
+            return mol_prediction
 
     def evaluate(self, outputs, values, mask):
         outputs = torch.FloatTensor(outputs)

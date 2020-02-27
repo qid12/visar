@@ -7,10 +7,11 @@ import pdb
 
 class DNNx2_regressor(nn.Module):
 
-    def __init__(self, n_features, layer_nodes, GPU = False):
+    def __init__(self, n_features, layer_nodes, dropouts = 0.5, GPU = False):
         super(DNNx2_regressor, self).__init__()
 
         self.GPU = GPU
+        self.dropouts = dropouts
 
         self.n_layers = len(layer_nodes)
         self.layer_nodes = layer_nodes
@@ -35,8 +36,8 @@ class DNNx2_regressor(nn.Module):
         X = torch.flatten(X, start_dim = 1)
 
         out = self.fc0(X)
-        out = F.dropout(F.relu(self.fc1(out)), p = dropouts)
-        out = F.dropout(F.relu(self.fc2(out)), p = dropouts)
+        out = F.dropout(F.relu(self.fc1(out)), p = self.dropouts)
+        out = F.dropout(F.relu(self.fc2(out)), p = self.dropouts)
 
         return out
 
@@ -130,7 +131,7 @@ class DNNx2_regressor(nn.Module):
             r2 = r2_score(y_true, y_pred)
             mse = mean_squared_error(y_true, y_pred)
 
-            return r2, mse
+            return [r2], [mse]
             
         else:  # multiple assays
             r2_store = []
