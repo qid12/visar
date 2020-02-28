@@ -5,12 +5,24 @@ import torch.optim as optim
 from sklearn.metrics import r2_score, mean_squared_error
 from visar.utils.visar_utils import FP_dim, update_bicluster 
 from visar.models.pytorch_models import DNNx2_regressor
+from visar.VISAR_model import visar_model
+import os
+import pandas as pd
+import pdb
+import numpy as np
+
+#from visar_utils import update_bicluster
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+from sklearn.cluster import MiniBatchKMeans
+
+from visar.models.AttentiveLayers import Fingerprint
 
 #================================================
 
-class pytorch_DNN_model(visar):
+class pytorch_DNN_model(visar_model):
     def __init__(self, para_dict, *args, **kwargs):
-        super().__init__(self, para_dict, *args, **kwargs)
+        super().__init__(para_dict, *args, **kwargs)
 
         # set default parameters
         if 'dropouts' not in para_dict:
@@ -32,8 +44,6 @@ class pytorch_DNN_model(visar):
 
         self.n_features = FP_dim[self.para_dict['feature_type']]
         self.dropout = self.para_dict['dropouts']
-        self.layer_nodes = self.para_dict['layer_nodes']
-        self.n_layers = len(self.layer_nodes)
 
         # get training params
         self.lr = self.para_dict['learning_rate']
@@ -44,14 +54,12 @@ class pytorch_DNN_model(visar):
 
 
     def model_init(self):
-        self.model = DNNx2_regressor(self.n_features, self.layer_nodes, 
-                                     self.dropout, self.GPU = False)
+        self.model = DNNx2_regressor(self.n_features, self.para_dict['layer_nodes'], self.dropout, self.GPU)
 
     def forward(self, X_feature):
         return self.model.forward(X_feature)
     
     def loss_func(self, output, target, mask):
-        pdb.set_trace()
         if self.GPU:
             target = target.cuda()
             mask = mask.cuda()
@@ -62,13 +70,13 @@ class pytorch_DNN_model(visar):
 
     def optimizers(self):
         if self.optimizer == 'Adam':
-            return optim.Adam(self.parameters(), lr=self.lr)
+            return optim.Adam(self.model.parameters(), lr=self.lr)
 
         elif self.optimizer == 'RMSprop':
-            return optim.RMSprop(self.parameters(), lr=self.lr)
+            return optim.RMSprop(self.model.parameters(), lr=self.lr)
 
         elif self.optimizer == 'SGD':
-            return optim.SGD(self.parameters(), lr=self.lr)
+            return optim.SGD(self.model.parameters(), lr=self.lr)
     #-----------------------------
 
     def fit(self, train_loader, test_loader):
@@ -79,22 +87,21 @@ class pytorch_DNN_model(visar):
         saved_epoch = self.load_model()
 
         for iteration in range(saved_epoch, self.epoch_num):
-            # training each epoch
-            self.train()    
+            # training each epoch    
 
             for e in range(self.epoch):
                 total_loss = 0
-                outputs_train = []
+                #outputs_train = []
 
-                for features, labels, mask, _ in data_loader:
+                for features, labels, mask, _ in train_loader:
                     logps = self.forward(features)
-                    loss = self.loss_func(logps, y, mask)
+                    loss = self.loss_func(logps, labels, mask)
                     total_loss += loss
 
-                    if self.GPU:
-                        outputs_train.append(logs.cpu().detach().numpy())
-                    else:
-                        outputs_train.append(logps.detach().numpy())
+                    #if self.GPU:
+                    #    outputs_train.append(logps.cpu().detach().numpy())
+                    #else:
+                    #    outputs_train.append(logps.detach().numpy())
 
                     optimizer.zero_grad()
                     loss.backward()
@@ -113,6 +120,7 @@ class pytorch_DNN_model(visar):
             test_evaluation.append(test_scores[0])
             print("Test R2 score: %.3f" % np.mean(np.array(test_scores[0])))
             print("Test MSE score: %.3f" % np.mean(np.array(test_scores[1])))
+            print('============================')
         
             # save evaluation scores
             train_df = pd.DataFrame(np.array(train_evaluation))
@@ -123,7 +131,7 @@ class pytorch_DNN_model(visar):
             test_df.to_csv(self.save_path + '/test_log.csv', index = None)
 
             # save model
-            self.save_model('Epoch_' + str(iteration + 1), self.state_dict())
+            self.save_model('Epoch_' + str(iteration + 1), self.model.state_dict())
 
 
     def evaluate(self, data_loader):
@@ -131,31 +139,37 @@ class pytorch_DNN_model(visar):
         labels = []
         weights = []
         for X, y, w, _ in data_loader:
-            outputs.append(self.forward(X))
+            if self.GPU:
+                outputs.append(self.forward(X).cpu().detach().numpy())
+            else:
+                outputs.append(self.forward(X).detach().numpy())
             labels.append(y)
             weights.append(w)
 
         Xs = np.concatenate(outputs, axis = 0)
         ys = np.concatenate(labels, axis = 0)
-        ws = np.concatenate(w, axis = 0)
+        ws = np.concatenate(weights, axis = 0)
         return self.model.evaluate(Xs, ys, ws)
 
     def predict(self, data_loader):
-        Xs = []
+        outputs = []
         for X, _, _, _ in data_loader:
-            Xs.append(self.forward(X))
-        Xs = np.concatenate(Xs, axis = 0)
+            if self.GPU:
+                outputs.append(self.forward(X).cpu().detach().numpy())
+            else:
+                outputs.append(self.forward(X).detach().numpy())
+        Xs = np.concatenate(outputs, axis = 0)
         return Xs
 
-    def save_model(self, filename):
-        torch.save(self.model, os.path.join(self.save_path, filename))
+    def save_model(self, filename, model):
+        torch.save(model, os.path.join(self.save_path, filename))
 
     def load_model(self):
 
         for e in range(self.epoch, 0, -1):
             if os.path.isfile(os.path.join(self.save_path, 'Epoch_' + str(e))):
                 # print(os.path.join(self.save_path, 'Epoch_' + str(e)))
-                self.load_state_dict(torch.load(os.path.join(self.save_path, 'Epoch_' + str(e))))
+                self.model.load_state_dict(torch.load(os.path.join(self.save_path, 'Epoch_' + str(e))))
                 return e
         return 0
 
@@ -209,17 +223,17 @@ class pytorch_DNN_model(visar):
         compound_df = pd.merge(compound_df, pred_df, on = 'chembl_id')
         return compound_df
 
-    def generate_task_df(self, data_loader):        
-        grad_mat = np.zeros((n_features, len(self.tasks) + 1))
+    def generate_task_df(self, data_loader, df):        
         Xs = np.concatenate([i for i, _, _, _ in data_loader])
         masks = np.concatenate([i for _, _, i, _ in data_loader])
+        grad_mat = np.zeros((self.n_features, Xs.shape[0], len(self.tasks) + 1))
         for task_i in range(len(self.tasks)):
-            grad_mat[:,task_i] = self.model.get_gradient_task(self, Xs, masks, task_i).reshape(-1,1)
-        grad_mat[:, len(self.tasks)] = self.model.get_gradient_task(self, Xs, masks, None).reshape(-1,1)
+            grad_mat[:,:,task_i] = self.model.get_gradient_task(Xs, masks, task_i).transpose()
+        grad_mat[:,:,len(self.tasks)] = self.model.get_gradient_task(Xs, masks, None).transpose()
 
-        self.task_df = pd.DataFrame(grad_mat)
+        self.task_df = pd.DataFrame(np.mean(grad_mat,axis = 1))
         self.task_df.columns = self.tasks + ['SHARE']
-
+        #self.task_df = grad_mat
         return
 
     # --------------------------------
@@ -231,7 +245,7 @@ class pytorch_DNN_model(visar):
 
         # get the actual task list from log files
         test_log_df = pd.read_csv(self.save_path + '/test_log.csv')
-        self.tasks = test_log_df.columns.values
+        self.tasks = list(test_log_df.columns.values)
 
         print('------------- Prepare information for chemicals ------------------')
         # calculate transfer values and coordinates
@@ -252,7 +266,7 @@ class pytorch_DNN_model(visar):
 
         print('------------- Prepare information for tasks ------------------')
         # derivative/gradient/sensitivity calculation
-        self.generate_task_df(train_loader)
+        self.generate_task_df(train_loader, train_df)
 
         print('------- Generate color labels with default K of 5 --------')
         # color mapping
@@ -278,9 +292,14 @@ class pytorch_DNN_model(visar):
 
 ##------------------------------------
 
+from visar.utils.getFeatures import (
+    save_smiles_dicts,
+    get_smiles_array)
+import pickle
+
 class pytorch_AFP_model(pytorch_DNN_model):
     def __init__(self, para_dict, *args, **kwargs):
-        super().__init__(self, para_dict, *args, **kwargs)
+        super().__init__(para_dict, *args, **kwargs)
 
         self.num_atom_features = self.para_dict['num_atom_features']
         self.num_bond_features = self.para_dict['num_bond_features']
@@ -300,16 +319,93 @@ class pytorch_AFP_model(pytorch_DNN_model):
     def forward(self, X_feature):
         x_atom, x_bonds, x_atom_index, x_bond_index, x_mask = X_feature
         return self.model.forward(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
+    
+    def get_coords(self, n_layer, train_loader, custom_loader = None, mode = 'default'):
+        if mode == 'default':
+            transfer_values = []
+            for Xs, _, _, _ in train_loader:
+                x_atom, x_bonds, x_atom_index, x_bond_index, x_mask = Xs
+                transfer_values.append(self.model.get_transfer_values(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, n_layer))
+            transfer_values = np.concatenate(transfer_values, axis = 0)
+            N_training = transfer_values.shape[0]
+            
+            if not custom_loader is None:
+                transfer_values2 = []
+                for Xs, _, _, _ in train_loader:
+                    x_atom, x_bonds, x_atom_index, x_bond_index, x_mask = Xs
+                    transfer_values2.append(self.model.get_transfer_values(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, n_layer))
+                transfer_values2 = np.concatenate(transfer_values2, axis = 0)
 
-    def generate_task_df(self, data_loader):
-        grad_mat = []
-        for X_feature, _, _, _ in data_loader:
+                N_custom = transfer_values2.shape[0]
+                transfer_values = np.concatenate((transfer_values, transfer_values2), axis = 0)
+
+            pca = PCA(n_components = 20)
+            value_reduced_20d = pca.fit_transform(transfer_values)
+            tsne = TSNE(n_components = 2)
+            value_reduced = tsne.fit_transform(value_reduced_20d)
+
+            if not custom_loader is None:
+                return value_reduced[0:N_training,:], value_reduced[N_training:(N_training+N_custom),:]
+            else:
+                return value_reduced, None
+
+    def generate_task_df(self, data_loader, df):
+        feature_dicts = pickle.load(open(self.para_dict['feature_file'], 'rb'))
+        smiles_list = df[self.para_dict['smiles_field']].values
+        ids_to_smiles = dict(zip(df[self.para_dict['id_field']].values, 
+                                 df[self.para_dict['smiles_field']].values))
+        _, _, _, _, _, smiles_to_rdkit_list = get_smiles_array(smiles_list, feature_dicts)
+        grad_mat = np.zeros((len(df), self.para_dict['mol_length']))
+        cnt = 0
+        for X_feature, _, mask, ids in data_loader:
             x_atom, x_bonds, x_atom_index, x_bond_index, x_mask = X_feature
-            grad_mat.append(get_attention_values(x_atom, x_bonds, x_atom_index, x_bond_index))
-
-        grad_mat = np.concatenate(grad_mat, axis = 0)
+            grad = self.model.get_attention_values(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask)
+            for m in range(len(ids)):
+                out_weight = []
+                ind_mask = x_mask[m]
+                ind_weight = grad[m]
+                for j, one_or_zero in enumerate(list(ind_mask)):
+                    if one_or_zero == 1.0:
+                        out_weight.append(ind_weight[j])
+                
+                ind_atom = smiles_to_rdkit_list[ids_to_smiles[ids[m]]]
+                grad_mat[cnt, 0:len(ind_atom)] = np.array([out_weight[m] for m in np.argsort(ind_atom)]).flatten()
+                cnt += 1
+                
+        self.task_df = pd.DataFrame(grad_mat)
+        #self.task_df.columns = ['SHARE']
 
         return
+    
+    def generate_instance_analysis(self, smiles, grad_df, idx,
+                                   pos_cut = 3, neg_cut = -3):
+        """
+        Notice task_df must be generated before running this function
+        map the gradient of Morgan fingerprint bit on the molecule
+        Input:
+            smi - the smiles of the molecule (a string)
+            gradient - the 2048 coeffients of the feature
+            cutoff - if positive, get the pos where the integrated weight is bigger than the cutoff;
+                    if negative, get the pos where the integrated weight is smaller than the cutoff
+        Output:
+            two list of atom ids (positive and negative)   
+        """
+        #self.generate_task_df(train_loader, prev_model, valid_mask)
+        
+        # generate mol 
+        mol = Chem.MolFromSmiles(smiles_string)
+        values = grad_df.iloc[idx]
+        atomsToUse = np.array([item for item in values if ~(item == 0.0)])
+        highlit_pos = []
+        highlit_neg = []
+        for i in range(len(atomsToUse)):
+            if  atomsToUse[i] > pos_cut:
+                highlit_pos.append(i)
+            elif atomsToUse[i] < neg_cut:
+                highlit_neg.append(i)
+        highlit_neg_dict[item] = highlit_neg
+        highlit_pos_dict[item] = highlit_pos
+        atomsToUse_dict[item] = atomsToUse
 
-
-
+        return mol, highlit_pos_dict, highlit_neg_dict, atomsToUse_dict
+    

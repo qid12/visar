@@ -37,7 +37,7 @@ class DNNx2_regressor(nn.Module):
 
         out = self.fc0(X)
         out = F.dropout(F.relu(self.fc1(out)), p = self.dropouts)
-        out = F.dropout(F.relu(self.fc2(out)), p = self.dropouts)
+        out = F.relu(self.fc2(out))
 
         return out
 
@@ -64,11 +64,10 @@ class DNNx2_regressor(nn.Module):
         # turns off the gradient descent for all params
         for param in self.parameters():
             param.requires_grad = False
-
         if self.GPU:
-            X = Xs.cuda()
+            X = torch.tensor(Xs).cuda()
         else:
-            X = Xs
+            X = torch.tensor(Xs)
         
         X = torch.flatten(X, start_dim = 1)
         self.X_variable = torch.autograd.Variable(X, requires_grad = True)
@@ -116,8 +115,10 @@ class DNNx2_regressor(nn.Module):
         else:
             act = out[mask]  ##!!!!
         act.sum().backward()
-
-        return self.X_variable.grad
+        if self.GPU:
+            return self.X_variable.grad.cpu().detach().numpy()
+        else:
+            return self.X_variable.grad.detach().numpy()
     
     def evaluate(self, outputs, values, mask):
         outputs = torch.FloatTensor(outputs)

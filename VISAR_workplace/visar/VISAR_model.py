@@ -21,9 +21,9 @@ from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D
 from rdkit.Chem import rdMolDescriptors
 from IPython.display import SVG
-import cairosvg
+#import cairosvg
 
-from visar.visar_utils import update_bicluster, FP_dim
+from visar.utils.visar_utils import update_bicluster, FP_dim
 import pdb
 
 class visar_model:

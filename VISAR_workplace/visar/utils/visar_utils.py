@@ -7,7 +7,8 @@ from bokeh.palettes import Category20_20, Category20b_20
 FP_dim = {'Circular_2048': 2048,
           'Circular_1024': 1024,
           'Morgan': 2048,
-          'MACCS': 167}
+          'MACCS': 167,
+          'graph attentive fingerprint': None}
 
 def extract_clean_dataset(subset_names, MT_df, add_features = None, id_field = 'molregno', smiles_field = 'salt_removed_smi'):
     '''
