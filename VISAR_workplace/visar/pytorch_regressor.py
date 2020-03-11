@@ -63,8 +63,14 @@ class pytorch_DNN_model(visar_model):
         if self.GPU:
             target = target.cuda()
             mask = mask.cuda()
-        out = (output[mask] - target[mask])**2
-        loss = out.mean()
+        if self.para_dict['normalize']:
+            # assemble ratio dict
+            loss = 0
+            for nn in range(output.shape[1]):
+                loss += (output[nn,mask[nn,:]] - target[nn,mask[nn,:]]) * self.para_dict['ratio_list'][nn] **2
+        else:
+            out = (output[mask] - target[mask])**2
+            loss = out.sum()
 
         return loss
 

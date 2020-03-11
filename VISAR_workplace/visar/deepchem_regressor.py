@@ -11,6 +11,7 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from sklearn.cluster import MiniBatchKMeans
 
+
 warnings.filterwarnings("ignore")
 from visar.dataloader.deepchem_utils import (
     prepare_dataset,
@@ -23,6 +24,7 @@ from visar.utils.visar_utils import update_bicluster, FP_dim
 import pdb
 
 import tensorflow.keras.backend as K
+warnings.filterwarnings("ignore")
 
 class deepchem_regressor(visar_model):
     def __init__(self, para_dict, *args, **kwargs):
