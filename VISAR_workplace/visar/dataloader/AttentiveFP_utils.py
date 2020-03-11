@@ -37,7 +37,7 @@ class feature_dict_dataset(Dataset):
         return (x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids)
 
     def __len__(self):
-        return len(self.df)
+        return len(self.ids)
 
 def collate_fn(data):
     x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids = zip(*data)
@@ -52,9 +52,30 @@ def feature_dict_loader(para_dict):
     model_flag = para_dict['model_flag']
     add_features = para_dict['add_features']
     batch_size = para_dict['batch_size']
+    normalize = para_dict['normalize']
 
     # extract clean datasets based on output_field
     MT_df = pd.read_csv(fname)
+
+    if normalize:
+        mean_list = []
+        std_list = []
+        mad_list = []
+        ratio_list = []
+        for t in task:
+            mean = MT_df[t].mean()
+            mean_list.append(mean)
+            std = MT_df[t].std()
+            std_list.append(std)
+            mad = MT_df[t].mad()
+            mad_list.append(mad)
+            ratio_list.append(std/mad)
+            MT_df[t] = (MT_df[t] - mean) / std
+        para_dict['mean_list'] = mean_list
+        para_dict['std_list'] = std_list
+        para_dict['mad_list'] = mad_list
+        para_dict['ratio_list'] = ratio_list
+
     if model_flag == 'ST':
         df = extract_clean_dataset(task, MT_df, smiles_field = smiles_field, id_field = id_field)
     elif model_flag == 'MT':
@@ -77,7 +98,11 @@ def feature_dict_loader(para_dict):
     test_loader = DataLoader(feature_dict_dataset(feature_filename, test_df, smiles_field, id_field, task), 
                               batch_size = batch_size, collate_fn = collate_fn)
 
-    return train_loader, test_loader, train_df, test_df
+    X, y, w, ids = next(iter(train_loader))
+    para_dict['num_atom_features'] = X[0].shape[-1]
+    para_dict['num_bond_features'] = X[1].shape[-1]
+
+    return train_loader, test_loader, train_df, test_df, para_dict
 
 #------------------------------------
 

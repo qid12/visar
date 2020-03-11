@@ -51,8 +51,29 @@ def prepare_dataset(para_dict):
     model_flag = para_dict['model_flag']
     add_features = para_dict['add_features']
     FP_type = para_dict['feature_type']
+    normalize = para_dict['normalize']
 
     MT_df = pd.read_csv(fname)
+
+    if normalize:
+        mean_list = []
+        std_list = []
+        mad_list = []
+        ratio_list = []
+        for t in task:
+            mean = MT_df[t].mean()
+            mean_list.append(mean)
+            std = MT_df[t].std()
+            std_list.append(std)
+            mad = MT_df[t].mad()
+            mad_list.append(mad)
+            ratio_list.append(std/mad)
+            MT_df[t] = (MT_df[t] - mean) / std
+        para_dict['mean_list'] = mean_list
+        para_dict['std_list'] = std_list
+        para_dict['mad_list'] = mad_list
+        para_dict['ratio_list'] = ratio_list
+
     if model_flag == 'ST':
         df = extract_clean_dataset(task, MT_df, smiles_field = smiles_field, id_field = id_field)
     elif model_flag == 'MT':
@@ -134,7 +155,7 @@ def prepare_dataset(para_dict):
 
     # train test split
     if para_dict['frac_train'] is None:
-        return dataset, df
+        return dataset, df, para_dict
     else:
         splitter = dc.splits.RandomSplitter(dataset_file)
         train_loader, test_loader = splitter.train_test_split(dataset, 
@@ -145,7 +166,7 @@ def prepare_dataset(para_dict):
         test_df = df.loc[list(test_loader.ids)]
         train_df = train_df.reset_index()
         test_df = test_df.reset_index()
-        return train_loader, test_loader , train_df, test_df
+        return train_loader, test_loader , train_df, test_df, para_dict
 
 #----------------------------------------------
 # functions for transfer value calculating (layer1/2)

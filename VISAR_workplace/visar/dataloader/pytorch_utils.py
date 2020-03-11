@@ -63,9 +63,30 @@ def compound_FP_loader(para_dict):
     add_features = para_dict['add_features']
     FP_type = para_dict['feature_type']
     batch_size = para_dict['batch_size']
+    normalize = para_dict['normalize']
 
     # extract clean datasets based on output_field
     MT_df = pd.read_csv(fname)
+
+    if normalize:
+        mean_list = []
+        std_list = []
+        mad_list = []
+        ratio_list = []
+        for t in task:
+            mean = MT_df[t].mean()
+            mean_list.append(mean)
+            std = MT_df[t].std()
+            std_list.append(std)
+            mad = MT_df[t].mad()
+            mad_list.append(mad)
+            ratio_list.append(std/mad)
+            MT_df[t] = (MT_df[t] - mean) / std
+        para_dict['mean_list'] = mean_list
+        para_dict['std_list'] = std_list
+        para_dict['mad_list'] = mad_list
+        para_dict['ratio_list'] = ratio_list
+
     if model_flag == 'ST':
         df = extract_clean_dataset(task, MT_df, smiles_field = smiles_field, id_field = id_field)
     elif model_flag == 'MT':
@@ -88,6 +109,6 @@ def compound_FP_loader(para_dict):
     test_loader = DataLoader(compound_dataset(test_df, smiles_field, id_field, task, FP_type), 
                               batch_size = batch_size, collate_fn = collate_fn)
 
-    return train_loader, test_loader, train_df, test_df
+    return train_loader, test_loader, train_df, test_df, para_dict
 
 
