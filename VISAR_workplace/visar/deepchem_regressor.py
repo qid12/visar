@@ -1,5 +1,6 @@
 import os
 import json
+import warnings
 
 import deepchem as dc
 import numpy as np
@@ -10,14 +11,15 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from sklearn.cluster import MiniBatchKMeans
 
-from visar.deepchem_utils import (
+warnings.filterwarnings("ignore")
+from visar.dataloader.deepchem_utils import (
     prepare_dataset,
     ST_model_layer1,
     ST_model_layer2
     )
 
 from visar.VISAR_model import visar_model
-from visar.visar_utils import update_bicluster, FP_dim
+from visar.utils.visar_utils import update_bicluster, FP_dim
 import pdb
 
 import tensorflow.keras.backend as K

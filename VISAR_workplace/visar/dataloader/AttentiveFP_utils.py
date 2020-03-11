@@ -37,7 +37,7 @@ class feature_dict_dataset(Dataset):
         return (x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids)
 
     def __len__(self):
-        return len(self.df)
+        return len(self.ids)
 
 def collate_fn(data):
     x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids = zip(*data)

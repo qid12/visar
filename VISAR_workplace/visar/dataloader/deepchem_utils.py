@@ -28,6 +28,7 @@ from scipy.stats import pearsonr
 
 from visar.utils.visar_utils import extract_clean_dataset
 
+import warnings
 warnings.filterwarnings("ignore")
 #-------------------------------------
 
