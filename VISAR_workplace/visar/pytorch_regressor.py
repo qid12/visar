@@ -67,10 +67,12 @@ class pytorch_DNN_model(visar_model):
             # assemble ratio dict
             loss = 0
             for nn in range(output.shape[1]):
-                loss += (output[nn,mask[nn,:]] - target[nn,mask[nn,:]]) * self.para_dict['ratio_list'][nn] **2
+                if mask[:,nn].sum() > 0:
+                    se = (output[mask[:,nn],nn] - target[mask[:,nn],nn])**2 
+                    loss += se.mean() * self.para_dict['ratio_list'][nn] **2
         else:
             out = (output[mask] - target[mask])**2
-            loss = out.sum()
+            loss = out.mean()
 
         return loss
 

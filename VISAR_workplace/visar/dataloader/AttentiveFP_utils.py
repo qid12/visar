@@ -63,11 +63,11 @@ def feature_dict_loader(para_dict):
         mad_list = []
         ratio_list = []
         for t in task:
-            mean = MT_df[t].mean()
+            mean = MT_df[t].mean(skipna = True)
             mean_list.append(mean)
-            std = MT_df[t].std()
+            std = MT_df[t].std(skipna = True)
             std_list.append(std)
-            mad = MT_df[t].mad()
+            mad = MT_df[t].mad(skipna = True)
             mad_list.append(mad)
             ratio_list.append(std/mad)
             MT_df[t] = (MT_df[t] - mean) / std
