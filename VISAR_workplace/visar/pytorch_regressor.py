@@ -135,8 +135,8 @@ class pytorch_DNN_model(visar_model):
             test_df = pd.DataFrame(np.array(test_evaluation))
             train_df.columns = self.tasks
             test_df.columns = self.tasks
-            train_df.to_csv(self.save_path + '/train_log.csv', index = None)
-            test_df.to_csv(self.save_path + '/test_log.csv', index = None)
+            train_df.to_csv(self.save_path + '/' + self.para_dict['model_name'] + '_train_log.csv', index = None)
+            test_df.to_csv(self.save_path + '/' + self.para_dict['model_name'] + '_test_log.csv', index = None)
 
             # save model
             self.save_model('Epoch_' + str(iteration + 1), self.model.state_dict())
@@ -192,7 +192,7 @@ class pytorch_DNN_model(visar_model):
             
             if not custom_loader is None:
                 transfer_values2 = []
-                for Xs, _, _, _ in train_loader:
+                for Xs, _, _, _ in custom_loader:
                     transfer_values2.append(self.model.get_transfer_values(Xs, n_layer))
                 transfer_values2 = np.concatenate(transfer_values2, axis = 0)
 
@@ -213,7 +213,7 @@ class pytorch_DNN_model(visar_model):
         data_loader_ids = []
         for _, _, _, ids in data_loader:
             data_loader_ids += ids
-
+        
         pred_mat = self.predict(data_loader)
         #pred_mat = pred_mat[:,self.valid_mask]
         pred_df = pd.DataFrame(pred_mat)
@@ -283,9 +283,9 @@ class pytorch_DNN_model(visar_model):
             lut2 = dict(zip(batch_df['Label_id'], batch_df['batch_label_color']))
             lut22 = dict(zip(batch_df['Label_id'], batch_df['batch_label']))
             lut222 = dict(zip(compound_df['label'], compound_df['label_color']))
-            compound_df2['batch_label_color'] = self.compound_df2['label'].map(lut2)
-            compound_df2['batch_label'] = self.compound_df2['label'].map(lut22)
-            compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
+            self.compound_df2['batch_label_color'] = self.compound_df2['label'].map(lut2)
+            self.compound_df2['batch_label'] = self.compound_df2['label'].map(lut22)
+            self.compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
 
         print('-------------- Saving datasets ----------------')
         # saving results
@@ -294,7 +294,7 @@ class pytorch_DNN_model(visar_model):
         task_df.to_csv('{}/{}_task_df.csv'.format(self.model_path, output_prefix), index = False)
 
         if not custom_loader is None:
-            compound_df2.to_csv(output_prefix + 'compound_custom_df.csv', index = False)
+            self.compound_df2.to_csv('{}/{}_compound_custom_df.csv'.format(self.model_path, output_prefix), index = False)
         
         return
 
@@ -339,7 +339,7 @@ class pytorch_AFP_model(pytorch_DNN_model):
             
             if not custom_loader is None:
                 transfer_values2 = []
-                for Xs, _, _, _ in train_loader:
+                for Xs, _, _, _ in custom_loader:
                     x_atom, x_bonds, x_atom_index, x_bond_index, x_mask = Xs
                     transfer_values2.append(self.model.get_transfer_values(x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, n_layer))
                 transfer_values2 = np.concatenate(transfer_values2, axis = 0)

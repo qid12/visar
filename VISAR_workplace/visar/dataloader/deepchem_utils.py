@@ -32,7 +32,7 @@ import warnings
 warnings.filterwarnings("ignore")
 #-------------------------------------
 
-def prepare_dataset(para_dict):
+def prepare_dataset(para_dict, max_cutoff = None):
     '''
     input: fname --- name of the file of raw data containing chemicals and the value for each assay;
            task --- list of task names (supporting 1 or more, but must be a list)

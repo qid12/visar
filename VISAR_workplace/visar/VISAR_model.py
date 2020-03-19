@@ -25,11 +25,12 @@ from IPython.display import SVG
 
 from visar.utils.visar_utils import update_bicluster, FP_dim
 import pdb
+import copy
 
 class visar_model:
     def __init__(self, para_dict, *args, **kwargs):
 
-        self.para_dict = para_dict
+        self.para_dict = copy.deepcopy(para_dict)
 
         # set working environment for the model
         self.work_path = os.path.join(os.getcwd(), 'logs')
@@ -192,7 +193,7 @@ class visar_model:
         self.batch_df['Label_id'] = mbk.means_labels_unique
 
         if not coord_values2 is None:
-            self.compound_df2['label'] = mbk.labels_[N_training: len(mbk.labels_)]
+            self.compound_df2['label'] = mbk.labels_[N_training: pred_mat.shape[0]]
         return
 
     def calculate_gradients(self):

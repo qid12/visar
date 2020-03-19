@@ -90,8 +90,8 @@ class deepchem_regressor(visar_model):
             test_df = pd.DataFrame(np.array(test_evaluation))
             train_df.columns = train_loader.get_task_names()
             test_df.columns = train_loader.get_task_names()
-            train_df.to_csv(self.save_path + '/train_log.csv', index = None)
-            test_df.to_csv(self.save_path + '/test_log.csv', index = None)
+            train_df.to_csv(self.save_path + '/' + self.para_dict['model_name'] + '_train_log.csv', index = None)
+            test_df.to_csv(self.save_path + '/' + self.para_dict['model_name'] + '_test_log.csv', index = None)
 
     # --------------------------------
     def save_param(self, path = None):
@@ -240,9 +240,9 @@ class deepchem_regressor(visar_model):
             lut2 = dict(zip(batch_df['Label_id'], batch_df['batch_label_color']))
             lut22 = dict(zip(batch_df['Label_id'], batch_df['batch_label']))
             lut222 = dict(zip(compound_df['label'], compound_df['label_color']))
-            compound_df2['batch_label_color'] = self.compound_df2['label'].map(lut2)
-            compound_df2['batch_label'] = self.compound_df2['label'].map(lut22)
-            compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
+            self.compound_df2['batch_label_color'] = self.compound_df2['label'].map(lut2)
+            self.compound_df2['batch_label'] = self.compound_df2['label'].map(lut22)
+            self.compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
 
         print('-------------- Saving datasets ----------------')
         # saving results
@@ -251,7 +251,7 @@ class deepchem_regressor(visar_model):
         task_df.to_csv('{}/{}_task_df.csv'.format(self.model_path, output_prefix), index = False)
 
         if not custom_loader is None:
-            compound_df2.to_csv(output_prefix + 'compound_custom_df.csv', index = False)
+            self.compound_df2.to_csv('{}/{}_compound_custom_df.csv'.format(self.model_path, output_prefix), index = False)
         
         return
 

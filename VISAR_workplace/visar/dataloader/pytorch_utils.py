@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, Dataset
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from visar.utils.visar_utils import extract_clean_dataset
+import random
 
 class compound_dataset(Dataset):
     def __init__(self, dataset, smiles_field, id_field, task, FP_type = 'Morgan'):
@@ -54,7 +55,7 @@ def collate_fn(data):
     return torch.FloatTensor(X), torch.tensor(y), torch.BoolTensor(w), list(ids)
 
 
-def compound_FP_loader(para_dict):
+def compound_FP_loader(para_dict, max_cutoff = None):
     fname = para_dict['dataset_file']
     smiles_field = para_dict['smiles_field']
     id_field = para_dict['id_field']
@@ -94,21 +95,28 @@ def compound_FP_loader(para_dict):
         if not add_features is None:
             task = task + add_features
 
-    # data preprocessing (including scale and clip, saving the related values to a json file)
-    # df_new = df_new
-
     # train test partition
-    np.random.seed(para_dict['rand_seed'])
-    msk = np.random.rand(len(df), ) < para_dict['frac_train']
-    train_df = df[msk]
-    test_df = df[~msk]
+    if para_dict['frac_train'] < 1:
+        np.random.seed(para_dict['rand_seed'])
+        msk = np.random.rand(len(df), ) < para_dict['frac_train']
+        train_df = df[msk]
+        test_df = df[~msk]
+    else:
+        train_df = df
+    
+    # random sample max number if too many compounds:
+    if not max_cutoff is None and max_cutoff < train_df.shape[0]:
+        train_df = train_df.iloc[random.sample([num for num in range(len(train_df))], max_cutoff)]
 
     # prepare generator
     train_loader = DataLoader(compound_dataset(train_df, smiles_field, id_field, task, FP_type), 
                               batch_size = batch_size, collate_fn = collate_fn)
-    test_loader = DataLoader(compound_dataset(test_df, smiles_field, id_field, task, FP_type), 
-                              batch_size = batch_size, collate_fn = collate_fn)
-
-    return train_loader, test_loader, train_df, test_df, para_dict
+    
+    if para_dict['frac_train'] < 1:
+        test_loader = DataLoader(compound_dataset(test_df, smiles_field, id_field, task, FP_type), 
+                                  batch_size = batch_size, collate_fn = collate_fn)
+        return train_loader, test_loader, train_df, test_df, para_dict
+    else:
+        return train_loader, train_df, para_dict
 
 

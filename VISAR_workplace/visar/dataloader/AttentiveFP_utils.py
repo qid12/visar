@@ -10,6 +10,7 @@ from visar.utils.visar_utils import extract_clean_dataset
 import pdb
 import torch
 import numpy as np
+import random
 
 class feature_dict_dataset(Dataset):
     def __init__(self, feature_filename, df, smiles_field, id_field, tasks):
@@ -43,7 +44,7 @@ def collate_fn(data):
     x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids = zip(*data)
     return [torch.Tensor(x_atom).squeeze(), torch.Tensor(x_bonds).squeeze(),torch.LongTensor(x_atom_index).squeeze(), torch.LongTensor(x_bond_index).squeeze(), torch.Tensor(x_mask).squeeze()], torch.Tensor(y).squeeze(), torch.BoolTensor(w).squeeze(), list(ids)
 
-def feature_dict_loader(para_dict):
+def feature_dict_loader(para_dict, max_cutoff = None):
     fname = para_dict['dataset_file']
     feature_filename = para_dict['feature_file']
     smiles_field = para_dict['smiles_field']
@@ -83,8 +84,9 @@ def feature_dict_loader(para_dict):
         if not add_features is None:
             task = task + add_features
 
-    # data preprocessing (including scale and clip, saving the related values to a json file)
-    # df_new = df_new
+    # random sample max number if too many compounds:
+    if not max_cutoff is None and max_cutoff < train_df.shape[0]:
+        df = df.iloc[random.sample([num for num in range(len(df))], max_cutoff)]
 
     # train test partition
     np.random.seed(para_dict['rand_seed'])
