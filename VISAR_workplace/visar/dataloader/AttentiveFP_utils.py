@@ -94,6 +94,21 @@ def feature_dict_loader(para_dict, max_cutoff = None):
     train_df = df[msk]
     test_df = df[~msk]
 
+    if para_dict['frac_train'] < 1:
+        np.random.seed(para_dict['rand_seed'])
+        train_df = copy.deepcopy(df)
+        test_df = copy.deepcopy(df)
+        for k in range(len(task)):
+            valid_index = list(df.loc[~pd.isnull(df['T11409'])].index)
+            N_sample = int(np.floor(len(valid_index) * para_dict['frac_train']))
+            train_index = random.sample(valid_index, N_sample)
+            test_index = list(set(valid_index).difference(set(train_index)))
+
+            train_df[task[k]].iloc[test_index] = np.nan
+            test_df[task[k]].iloc[train_index] = np.nan
+    else:
+        train_df = df
+
     # prepare generator
     train_loader = DataLoader(feature_dict_dataset(feature_filename, train_df, smiles_field, id_field, task), 
                               batch_size = batch_size, collate_fn = collate_fn)

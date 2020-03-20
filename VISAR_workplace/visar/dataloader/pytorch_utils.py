@@ -6,6 +6,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from visar.utils.visar_utils import extract_clean_dataset
 import random
+import copy
 
 class compound_dataset(Dataset):
     def __init__(self, dataset, smiles_field, id_field, task, FP_type = 'Morgan'):
@@ -96,11 +97,23 @@ def compound_FP_loader(para_dict, max_cutoff = None):
             task = task + add_features
 
     # train test partition
+    #if para_dict['frac_train'] < 1:
+    #    np.random.seed(para_dict['rand_seed'])
+    #    msk = np.random.rand(len(df), ) < para_dict['frac_train']
+    #    train_df = df[msk]
+    #    test_df = df[~msk]
     if para_dict['frac_train'] < 1:
         np.random.seed(para_dict['rand_seed'])
-        msk = np.random.rand(len(df), ) < para_dict['frac_train']
-        train_df = df[msk]
-        test_df = df[~msk]
+        train_df = copy.deepcopy(df)
+        test_df = copy.deepcopy(df)
+        for k in range(len(task)):
+            valid_index = list(df.loc[~pd.isnull(df['T11409'])].index)
+            N_sample = int(np.floor(len(valid_index) * para_dict['frac_train']))
+            train_index = random.sample(valid_index, N_sample)
+            test_index = list(set(valid_index).difference(set(train_index)))
+
+            train_df[task[k]].iloc[test_index] = np.nan
+            test_df[task[k]].iloc[train_index] = np.nan
     else:
         train_df = df
     
