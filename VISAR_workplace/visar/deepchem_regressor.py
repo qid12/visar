@@ -208,7 +208,7 @@ class deepchem_regressor(visar_model):
         self.load_model(prev_model)
 
         # get the actual task list from log files
-        test_log_df = pd.read_csv(self.save_path + '/test_log.csv')
+        test_log_df = pd.read_csv(self.save_path + '/' + self.para_dict['model_name'] + '_test_log.csv')
         self.tasks = test_log_df.columns.values
 
         print('------------- Prepare information for chemicals ------------------')

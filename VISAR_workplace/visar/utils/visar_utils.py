@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.cluster.bicluster import SpectralCoclustering
 from sklearn import preprocessing
 from bokeh.palettes import Category20_20, Category20b_20
+import os
 
 FP_dim = {'Circular_2048': 2048,
           'Circular_1024': 1024,
@@ -73,5 +74,4 @@ def update_bicluster(batch_df, task_df, compound_df, mode = 'RobustMT', K = 5):
     compound_df['label_color'] = c
 
     return batch_df, task_df, compound_df
-
 

@@ -35,9 +35,9 @@ class DNNx2_regressor(nn.Module):
         
         X = torch.flatten(X, start_dim = 1)
 
-        out = self.fc0(X)
+        out = F.dropout(F.relu(self.fc0(X)), p = self.dropouts)
         out = F.dropout(F.relu(self.fc1(out)), p = self.dropouts)
-        out = F.relu(self.fc2(out))
+        out = self.fc2(out)
 
         return out
 
@@ -51,9 +51,9 @@ class DNNx2_regressor(nn.Module):
 
         X = torch.flatten(X, start_dim = 1)
 
-        out = self.fc0(X)
+        out = F.relu(self.fc0(X))
         out = F.relu(self.fc1(out))
-        out = F.relu(self.fc2(out))
+        out = self.fc2(out)
             
 
         return out
@@ -72,9 +72,9 @@ class DNNx2_regressor(nn.Module):
         X = torch.flatten(X, start_dim = 1)
         self.X_variable = torch.autograd.Variable(X, requires_grad = True)
 
-        out = self.fc0(self.X_variable)
+        out = F.relu(self.fc0(self.X_variable))
         out = F.relu(self.fc1(out))
-        out = F.relu(self.fc2(out))
+        out = self.fc2(out)
 
         return out
 

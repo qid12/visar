@@ -126,7 +126,7 @@ class visar_model:
             transfer_values = train_loader.X
             if not custom_loader is None:
                 N_custom = custom_loader.X.shape[0]
-                transfer_values = np.concatenate((train_loader.X, custom_loader_loader.X), axis = 0)
+                transfer_values = np.concatenate((train_loader.X, custom_loader.X), axis = 0)
 
             pca = PCA(n_components = 20)
             value_reduced_20d = pca.fit_transform(transfer_values)
@@ -141,6 +141,9 @@ class visar_model:
     def generate_compound_df(self, data_loader, df, coord_values, id_field):
         pred_mat = self.predict(data_loader)
         #pred_mat = pred_mat[:,self.valid_mask]
+
+        if len(pred_mat.shape) == 1:
+            pred_mat = pred_mat.reshape(pred_mat.shape[0],1)
 
         # if normalized, transform them back to original scale
         if self.para_dict['normalize']:
@@ -173,12 +176,19 @@ class visar_model:
 
     def generate_batch_df(self, train_loader, custom_loader, coord_values1, coord_values2):
         pred_mat = self.predict(train_loader)
+
+        if len(pred_mat.shape) == 1:
+            pred_mat = pred_y.reshape(pred_mat.shape[0],1)
+
         values = coord_values1
         N_training = pred_mat.shape[0]
 
         if not coord_values2 is None:
             values = np.concatenate((coord_values1, coord_values2), axis = 0)
             pred_mat2 = self.predict(custom_loader)
+            if len(pred_mat2.shape) == 1:
+                pred_mat2 = pred_mat2.reshape(pred_mat2.shape[0],1)
+
             pred_mat = np.concatenate((pred_mat, pred_mat2), axis = 0)
 
         mbk = self.cluster_MiniBatch(values)
@@ -243,9 +253,9 @@ class visar_model:
             lut2 = dict(zip(batch_df['Label_id'], batch_df['batch_label_color']))
             lut22 = dict(zip(batch_df['Label_id'], batch_df['batch_label']))
             lut222 = dict(zip(compound_df['label'], compound_df['label_color']))
-            compound_df2['batch_label_color'] = self.compound_df2['label'].map(lut2)
-            compound_df2['batch_label'] = self.compound_df2['label'].map(lut22)
-            compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
+            self.compound_df2['batch_label_color'] = self.compound_df2['label'].map(lut2)
+            self.compound_df2['batch_label'] = self.compound_df2['label'].map(lut22)
+            self.compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
 
         print('-------------- Saving datasets ----------------')
         # replace smiles field to 'canonical_smiles'
@@ -259,7 +269,7 @@ class visar_model:
         if not custom_loader is None:
             switch_field = lambda item:'canonical_smiles' if item == self.para_dict['custom_smiles_field'] else item
             self.compound_df2.columns = [switch_field(item) for item in self.compound_df2.columns.tolist()]
-            compound_df2.to_csv(output_prefix + 'compound_custom_df.csv', index = False)
+            self.compound_df2.to_csv('{}/{}_compound_custom_df.csv'.format(self.model_path, output_prefix), index = False)
         
         return
 

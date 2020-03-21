@@ -53,7 +53,7 @@ class compound_dataset(Dataset):
 
 def collate_fn(data):
     X, y, w, ids = zip(*data)
-    return torch.FloatTensor(X), torch.tensor(y), torch.BoolTensor(w), list(ids)
+    return torch.FloatTensor(X), torch.FloatTensor(y), torch.BoolTensor(w), list(ids)
 
 
 def compound_FP_loader(para_dict, max_cutoff = None):

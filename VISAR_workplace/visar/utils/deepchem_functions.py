@@ -1,4 +1,5 @@
 import deepchem as dc
+import pdb
 
 from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras.layers import Dropout
@@ -14,7 +15,7 @@ def ST_model_builder(model_params, model_dir):
     model = dc.models.MultitaskRegressor(**model_params)
     return model
 
-def ST_model_hyperparam_screen(params_dict):
+def ST_model_hyperparam_screen(params_dict, candidate_params_dict):
     '''
     hyperparameter screening using deepchem package
     input: fname --- name of the file of raw data containing chemicals and the value for each assay;
@@ -24,27 +25,27 @@ def ST_model_hyperparam_screen(params_dict):
            log_path --- the directory saving the log file
     output: the log; log file saved in log_path
     '''
-    fname = params_dict['dataset_file']
-    task_names = params_dict['task_list']
-    FP_type = params_dict['feature_type']
-    smiles_field = params_dict['smiles_field']
-    id_field = params_dict['id_field']
-    log_path = './logs/'
+    current_path = os.getcwd()
+    params_dict['dataset_file'] = params_dict['dataset_file'].replace(r'.', current_path, 1)
+    hp_path = os.path.join(os.getcwd(), 'logs', params_dict['model_name'] + '_HP_screen')
+    if not os.path.exists(hp_path):
+        os.mkdir(hp_path)
+    os.chdir(hp_path)
+    log_path = hp_path
 
     log_output = []
     for task in task_names:
         print('----------------------------------------------')
         dataset_file = '%s/temp.csv' % (log_path)
-        dataset, _ = prepare_dataset(params_dict)
+        
         for cnt in range(3):
             print('Preparing dataset for %s of rep %d...' % (task, cnt + 1))
-            splitter = dc.splits.RandomSplitter(dataset_file)
-            train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(dataset)
+            train_dataset, valid_dataset, _, _, _ = prepare_dataset(params_dict)
     
             print('Hyperprameter screening ...')
             metric = dc.metrics.Metric(dc.metrics.r2_score)
             optimizer = dc.hyper.HyperparamOpt(ST_model_builder)
-            best_dnn, best_hyperparams, all_results = optimizer.hyperparam_search(params_dict,
+            best_dnn, best_hyperparams, all_results = optimizer.hyperparam_search(candidate_params_dict,
                                                                       train_dataset,
                                                                       valid_dataset, [],
                                                                       metric)
@@ -57,6 +58,7 @@ def ST_model_hyperparam_screen(params_dict):
                 for line in log_output:
                     f.write("%s\n" % line)
         os.system('rm %s' % dataset_file)
+    os.chdir(current_path)
     
     return  log_output
 
@@ -66,7 +68,7 @@ def RobustMT_model_builder(model_params, model_dir):
     model = dc.models.RobustMultitaskRegressor(**model_params)
     return model
 
-def RobustMT_model_hyperparam_screen(params_dict):
+def RobustMT_model_hyperparam_screen(params_dict, candidate_params_dict):
     '''
     hyperparameter screening using deepchem package
     input: fname --- name of the file of raw data containing chemicals and the value for each assay;
@@ -76,29 +78,26 @@ def RobustMT_model_hyperparam_screen(params_dict):
            log_path --- the directory saving the log file
     output: the log; log file saved in log_path
     '''
-    fname = params_dict['dataset_file']
-    task_names = params_dict['task_list']
-    FP_type = params_dict['feature_type']
-    smiles_field = params_dict['smiles_field']
-    id_field = params_dict['id_field']
-    log_path = './logs/'
+    current_path = os.getcwd()
+    params_dict['dataset_file'] = params_dict['dataset_file'].replace(r'.', current_path, 1)
+    hp_path = os.path.join(os.getcwd(), 'logs', params_dict['model_name'] + '_HP_screen')
+    if not os.path.exists(hp_path):
+        os.mkdir(hp_path)
+    os.chdir(hp_path)
+    log_path = hp_path
 
     log_output = []
-    print('----------------------------------------------')
-    dataset_file = '%s/temp.csv' % (log_path)
-    dataset, _ = prepare_dataset(fname, task_names, dataset_file, FP_type, 
-                                 smiles_field = smiles_field, 
-                                 add_features = None,
-                                 id_field = id_field, model_flag = 'MT')
+
     for cnt in range(3):
+        print('----------------------------------------------')
+        dataset_file = '%s/temp.csv' % (log_path)
         print('Preparing dataset of rep %d...' % ((cnt + 1)))
-        splitter = dc.splits.RandomSplitter(dataset_file)
-        train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(dataset)
+        train_dataset, valid_dataset, _, _, _ = prepare_dataset(params_dict)
     
         print('Hyperprameter screening ...')
         metric = dc.metrics.Metric(dc.metrics.r2_score, np.mean)
         optimizer = dc.hyper.HyperparamOpt(RobustMT_model_builder)
-        best_dnn, best_hyperparams, all_results = optimizer.hyperparam_search(params_dict,
+        best_dnn, best_hyperparams, all_results = optimizer.hyperparam_search(candidate_params_dict,
                                                                       train_dataset,
                                                                       valid_dataset, [],
                                                                       metric)
@@ -110,7 +109,8 @@ def RobustMT_model_hyperparam_screen(params_dict):
         with open('%s/%s_hyperparam_log.txt' % (log_path, params_dict['model_name']), 'w') as f:
             for line in log_output:
                 f.write("%s\n" % line)
-    os.system('rm %s' % dataset_file)
+        os.system('rm %s' % dataset_file)
+    os.chdir(current_path)
     
     return  log_output
 
