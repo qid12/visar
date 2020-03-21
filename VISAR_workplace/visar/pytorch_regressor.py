@@ -63,7 +63,7 @@ class pytorch_DNN_model(visar_model):
         if self.GPU:
             target = target.cuda()
             mask = mask.cuda()
-        if self.para_dict['normalize']:
+        if self.para_dict['normalize'] and output.shape[1] > 1:
             # assemble ratio dict
             loss = 0
             for nn in range(output.shape[1]):
@@ -215,6 +215,12 @@ class pytorch_DNN_model(visar_model):
             data_loader_ids += ids
         
         pred_mat = self.predict(data_loader)
+        
+        # if normalized, transform them back to original scale
+        if self.para_dict['normalize']:
+            for nn in range(pred_mat.shape[1]):
+                pred_mat[:,nn] = pred_mat[:,nn].flatten() * self.para_dict['std_list'][nn] + self.para_dict['mean_list'][nn]
+        
         #pred_mat = pred_mat[:,self.valid_mask]
         pred_df = pd.DataFrame(pred_mat)
         pred_df.columns = ['pred_' + xx for xx in self.tasks]
@@ -252,7 +258,7 @@ class pytorch_DNN_model(visar_model):
         self.load_model()
 
         # get the actual task list from log files
-        test_log_df = pd.read_csv(self.save_path + '/test_log.csv')
+        test_log_df = pd.read_csv(self.save_path + '/' + self.para_dict['model_name'] + '_test_log.csv')
         self.tasks = list(test_log_df.columns.values)
 
         print('------------- Prepare information for chemicals ------------------')
@@ -288,12 +294,18 @@ class pytorch_DNN_model(visar_model):
             self.compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
 
         print('-------------- Saving datasets ----------------')
+        # replace smiles field to 'canonical_smiles'
+        switch_field = lambda item:'canonical_smiles' if  item == self.para_dict['smiles_field'] else item
+        compound_df.columns = [switch_field(item) for item in compound_df.columns.tolist()]
+        
         # saving results
         compound_df.to_csv('{}/{}_compound_df.csv'.format(self.model_path, output_prefix), index = False)
         batch_df.to_csv('{}/{}_batch_df.csv'.format(self.model_path, output_prefix), index = False)
         task_df.to_csv('{}/{}_task_df.csv'.format(self.model_path, output_prefix), index = False)
 
         if not custom_loader is None:
+            switch_field = lambda item:'canonical_smiles' if item == self.para_dict['custom_smiles_field'] else item
+            self.compound_df2.columns = [switch_field(item) for item in self.compound_df2.columns.tolist()]
             self.compound_df2.to_csv('{}/{}_compound_custom_df.csv'.format(self.model_path, output_prefix), index = False)
         
         return

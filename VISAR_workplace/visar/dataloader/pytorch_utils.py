@@ -106,14 +106,22 @@ def compound_FP_loader(para_dict, max_cutoff = None):
         np.random.seed(para_dict['rand_seed'])
         train_df = copy.deepcopy(df)
         test_df = copy.deepcopy(df)
+        train_mask = np.zeros(len(df))
+        test_mask = np.zeros(len(df))
         for k in range(len(task)):
-            valid_index = list(df.loc[~pd.isnull(df['T11409'])].index)
-            N_sample = int(np.floor(len(valid_index) * para_dict['frac_train']))
+            valid_index = list(df.loc[~pd.isnull(df[task[k]])].index)
+            N_sample = int(np.floor(len(valid_index) * 0.8))
             train_index = random.sample(valid_index, N_sample)
             test_index = list(set(valid_index).difference(set(train_index)))
-
+    
             train_df[task[k]].iloc[test_index] = np.nan
             test_df[task[k]].iloc[train_index] = np.nan
+    
+            train_mask = train_mask + np.array(~pd.isnull(train_df[task[k]])).astype(int)
+            test_mask = test_mask + np.array(~pd.isnull(test_df[task[k]])).astype(int)
+
+        train_df = train_df.loc[train_mask > 0]
+        test_df = test_df.loc[test_mask > 0]
     else:
         train_df = df
     

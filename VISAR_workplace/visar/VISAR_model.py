@@ -141,6 +141,12 @@ class visar_model:
     def generate_compound_df(self, data_loader, df, coord_values, id_field):
         pred_mat = self.predict(data_loader)
         #pred_mat = pred_mat[:,self.valid_mask]
+
+        # if normalized, transform them back to original scale
+        if self.para_dict['normalize']:
+            for nn in range(pred_mat.shape[1]):
+                pred_mat[:,nn] = pred_mat[:,nn].flatten() * self.para_dict['std_list'][nn] + self.para_dict['mean_list'][nn]
+        
         pred_df = pd.DataFrame(pred_mat)
         pred_df.columns = ['pred_' + xx for xx in self.tasks]
         pred_df['chembl_id'] = data_loader.ids
@@ -242,11 +248,17 @@ class visar_model:
             compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
 
         print('-------------- Saving datasets ----------------')
+        # replace smiles field to 'canonical_smiles'
+        switch_field = lambda item:'canonical_smiles' if  item == self.para_dict['smiles_field'] else item
+        compound_df.columns = [switch_field(item) for item in compound_df.columns.tolist()]
+        
         compound_df.to_csv('{}/{}_compound_df.csv'.format(self.model_path, output_prefix), index = False)
         batch_df.to_csv('{}/{}_batch_df.csv'.format(self.model_path, output_prefix), index = False)
         task_df.to_csv('{}/{}_task_df.csv'.format(self.model_path, output_prefix), index = False)
 
         if not custom_loader is None:
+            switch_field = lambda item:'canonical_smiles' if item == self.para_dict['custom_smiles_field'] else item
+            self.compound_df2.columns = [switch_field(item) for item in self.compound_df2.columns.tolist()]
             compound_df2.to_csv(output_prefix + 'compound_custom_df.csv', index = False)
         
         return

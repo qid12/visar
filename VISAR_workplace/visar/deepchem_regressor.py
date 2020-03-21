@@ -245,12 +245,18 @@ class deepchem_regressor(visar_model):
             self.compound_df2['label_color'] = self.compound_df2['label'].map(lut222)
 
         print('-------------- Saving datasets ----------------')
+        # replace smiles field to 'canonical_smiles'
+        switch_field = lambda item:'canonical_smiles' if  item == self.para_dict['smiles_field'] else item
+        compound_df.columns = [switch_field(item) for item in compound_df.columns.tolist()]
+        
         # saving results
         compound_df.to_csv('{}/{}_compound_df.csv'.format(self.model_path, output_prefix), index = False)
         batch_df.to_csv('{}/{}_batch_df.csv'.format(self.model_path, output_prefix), index = False)
         task_df.to_csv('{}/{}_task_df.csv'.format(self.model_path, output_prefix), index = False)
 
         if not custom_loader is None:
+            switch_field = lambda item:'canonical_smiles' if item == self.para_dict['custom_smiles_field'] else item
+            self.compound_df2.columns = [switch_field(item) for item in self.compound_df2.columns.tolist()]
             self.compound_df2.to_csv('{}/{}_compound_custom_df.csv'.format(self.model_path, output_prefix), index = False)
         
         return

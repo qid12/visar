@@ -1,26 +1,19 @@
 import torch
-
-from visar.models.pytorch_models import DNNx2_regressor
-from visar.models.AttentiveLayers import Fingerprint
+import itertools
+import copy
 
 from visar.VISAR_model import visar_model
+from visar.dataloader.pytorch_utils import compound_FP_loader
 import os
 import pandas as pd
 import pdb
 import numpy as np
 
-#from visar_utils import update_bicluster
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
-from sklearn.cluster import MiniBatchKMeans
-
-#----------------------------------------------------------
-
-def hyperparam_screening(model_class, train_loader, valid_loader, 
-                         para_dict, candidate_params_dict, 
+def hyperparam_screening(model_class, para_dict, candidate_params_dict, 
                          mode = 'grid_search', epoch = 10, epoch_num = 2):
 
     current_path = os.getcwd()
+    para_dict['dataset_file'] = para_dict['dataset_file'].replace(r'.', current_path, 1)
     hp_path = os.path.join(os.getcwd(), 'logs', para_dict['model_name'] + '_HP_screen')
     if not os.path.exists(hp_path):
         os.mkdir(hp_path)
@@ -53,40 +46,45 @@ def hyperparam_screening(model_class, train_loader, valid_loader,
         best_param = {}
         best_perform = -1000
         best_temp_param = ''
-        test_evaluation = []
+        test_evaluation = [[],[],[]]
 
         # tracking store
-        for mm in range(len(param_list)):
-            param = param_list[mm]
-            print('-----------------------------')
-            temp_model = model_class(param)
-            temp_model.model_init()
-            temp_model.save_path
+        for rep in range(3):
+            para_dict['rand_seed'] = rep
+            train_loader, valid_loader, _, _, _ = compound_FP_loader(para_dict)
             
-            # model quick training
-            temp_model.fit(train_loader, valid_loader)
+            for mm in range(len(param_list)):
+                param = param_list[mm]
+                print('-----------------------------')
+                temp_model = model_class(param)
+                temp_model.model_init()
+                temp_model.save_path
+            
+                # model quick training
+                temp_model.fit(train_loader, valid_loader)
 
-            # deterimine if the best perform should be updated
-            current_scores = self.evaluate(test_loader)[0]
-            test_evaluation.append(current_scores)
-            if current_scores > best_perform:
-                best_perform = current_scores
-                best_param = param
-                best_temp_param = param_df.iloc[mm]
-            print('Current score: %.3f' % current_scores)
-            print('Best score: %.3f' % best_perform)
-            print('Best_param:')
-            print(best_temp_param)
+                # deterimine if the best perform should be updated
+                current_scores = temp_model.evaluate(valid_loader)
+                current_scores = current_scores[0][0]
+                test_evaluation[rep].append(current_scores)
+                if current_scores > best_perform:
+                    best_perform = current_scores
+                    best_param = param
+                    best_temp_param = param_df.iloc[mm]
+                print('Current score: %.3f' % current_scores)
+                print('Best score: %.3f' % best_perform)
+                print('Best_param:')
+                print(best_temp_param)
 
-            # clear working directory
-            os.system('rm -r %s' % temp_model.model_path)
+                # clear working directory
+                os.system('rm -r %s' % temp_model.model_path)
 
     # save tracking performance
     
-    param_df['R2 score'] = test_evaluation
+    param_df['R2 score rep1'] = test_evaluation[0]
+    param_df['R2 score rep2'] = test_evaluation[1]
+    param_df['R2 score rep3'] = test_evaluation[2]
     param_df.to_csv('screen_performance_tracking.csv', index = False)
     os.chdir(current_path)
 
     return best_param
-
-
