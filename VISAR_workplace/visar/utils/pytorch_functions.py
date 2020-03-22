@@ -4,16 +4,19 @@ import copy
 
 from visar.VISAR_model import visar_model
 from visar.dataloader.pytorch_utils import compound_FP_loader
+from visar.dataloader.AttentiveFP_utils import feature_dict_loader
 import os
 import pandas as pd
 import pdb
 import numpy as np
 
 def hyperparam_screening(model_class, para_dict, candidate_params_dict, 
-                         mode = 'grid_search', epoch = 10, epoch_num = 2):
+                         mode = 'grid_search', epoch = 10, epoch_num = 2, model_type = 'DNN'):
 
     current_path = os.getcwd()
     para_dict['dataset_file'] = para_dict['dataset_file'].replace(r'.', current_path, 1)
+    if model_type == 'AFP':
+        para_dict['feature_file'] = para_dict['feature_file'].replace(r'.', current_path, 1)
     hp_path = os.path.join(os.getcwd(), 'logs', para_dict['model_name'] + '_HP_screen')
     if not os.path.exists(hp_path):
         os.mkdir(hp_path)
@@ -51,10 +54,19 @@ def hyperparam_screening(model_class, para_dict, candidate_params_dict,
         # tracking store
         for rep in range(3):
             para_dict['rand_seed'] = rep
-            train_loader, valid_loader, _, _, _ = compound_FP_loader(para_dict)
+            if model_type == 'DNN':
+                train_loader, valid_loader, _, _, para_dict = compound_FP_loader(para_dict)
+            elif model_type == 'AFP':
+                train_loader, valid_loader, _, _, para_dict = feature_dict_loader(para_dict)
             
             for mm in range(len(param_list)):
                 param = param_list[mm]
+                
+                if para_dict['normalize']:
+                    param['mean_list'] = para_dict['mean_list']
+                    param['std_list'] = para_dict['std_list']
+                    param['ratio_list'] = para_dict['ratio_list']
+                    
                 print('-----------------------------')
                 temp_model = model_class(param)
                 temp_model.model_init()
@@ -65,7 +77,7 @@ def hyperparam_screening(model_class, para_dict, candidate_params_dict,
 
                 # deterimine if the best perform should be updated
                 current_scores = temp_model.evaluate(valid_loader)
-                current_scores = current_scores[0][0]
+                current_scores = np.mean(np.array(current_scores[0]))
                 test_evaluation[rep].append(current_scores)
                 if current_scores > best_perform:
                     best_perform = current_scores

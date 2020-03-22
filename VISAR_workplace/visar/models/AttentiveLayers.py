@@ -381,15 +381,15 @@ class Fingerprint(nn.Module):
         outputs = torch.FloatTensor(outputs)
             
         if len(values.shape) == 1 or values.shape[1] == 1:
-            y_pred = outputs.flatten()[mask]
-            y_true = values.flatten()[mask]
+            y_pred = outputs.flatten()[mask.flatten()]
+            y_true = values.flatten()[mask.flatten()]
             
             if self.GPU:
                 y_pred = y_pred.cpu().numpy()
             r2 = r2_score(y_true, y_pred)
             mse = mean_squared_error(y_true, y_pred)
 
-            return r2, mse
+            return [r2], [mse]
             
         else:  # multiple assays
             r2_store = []

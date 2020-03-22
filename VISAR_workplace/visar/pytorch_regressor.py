@@ -78,8 +78,7 @@ class pytorch_DNN_model(visar_model):
 
     def optimizers(self):
         if self.optimizer == 'Adam':
-            return optim.Adam(self.model.parameters(), lr=self.lr, 10**-learning_rate, 
-                           weight_decay=10**-weight_decay)
+            return optim.Adam(self.model.parameters(), lr=self.lr)
 
         elif self.optimizer == 'RMSprop':
             return optim.RMSprop(self.model.parameters(), lr=self.lr)

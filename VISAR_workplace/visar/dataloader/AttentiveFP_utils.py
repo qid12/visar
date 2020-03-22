@@ -10,6 +10,7 @@ from visar.utils.visar_utils import extract_clean_dataset
 import pdb
 import torch
 import numpy as np
+import copy
 import random
 
 class feature_dict_dataset(Dataset):
@@ -42,7 +43,8 @@ class feature_dict_dataset(Dataset):
 
 def collate_fn(data):
     x_atom, x_bonds, x_atom_index, x_bond_index, x_mask, y, w, ids = zip(*data)
-    return [torch.Tensor(x_atom).squeeze(), torch.Tensor(x_bonds).squeeze(),torch.LongTensor(x_atom_index).squeeze(), torch.LongTensor(x_bond_index).squeeze(), torch.Tensor(x_mask).squeeze()], torch.Tensor(y).squeeze(), torch.BoolTensor(w).squeeze(), list(ids)
+    #return [torch.Tensor(x_atom).squeeze(), torch.Tensor(x_bonds).squeeze(),torch.LongTensor(x_atom_index).squeeze(), torch.LongTensor(x_bond_index).squeeze(), torch.Tensor(x_mask).squeeze()], torch.Tensor(y).squeeze(), torch.BoolTensor(w).squeeze(), list(ids)
+    return [torch.Tensor(x_atom).squeeze(), torch.Tensor(x_bonds).squeeze(),torch.LongTensor(x_atom_index).squeeze(), torch.LongTensor(x_bond_index).squeeze(), torch.Tensor(x_mask).squeeze()], torch.Tensor(y), torch.BoolTensor(w), list(ids)
 
 def feature_dict_loader(para_dict, max_cutoff = None):
     fname = para_dict['dataset_file']
@@ -84,31 +86,38 @@ def feature_dict_loader(para_dict, max_cutoff = None):
         if not add_features is None:
             task = task + add_features
 
-    # random sample max number if too many compounds:
-    if not max_cutoff is None and max_cutoff < train_df.shape[0]:
-        df = df.iloc[random.sample([num for num in range(len(df))], max_cutoff)]
-
     # train test partition
-    np.random.seed(para_dict['rand_seed'])
-    msk = np.random.rand(len(df), ) < para_dict['frac_train']
-    train_df = df[msk]
-    test_df = df[~msk]
-
+    #if para_dict['frac_train'] < 1:
+    #    np.random.seed(para_dict['rand_seed'])
+    #    msk = np.random.rand(len(df), ) < para_dict['frac_train']
+    #    train_df = df[msk]
+    #    test_df = df[~msk]
     if para_dict['frac_train'] < 1:
         np.random.seed(para_dict['rand_seed'])
         train_df = copy.deepcopy(df)
         test_df = copy.deepcopy(df)
+        train_mask = np.zeros(len(df))
+        test_mask = np.zeros(len(df))
         for k in range(len(task)):
-            valid_index = list(df.loc[~pd.isnull(df['T11409'])].index)
+            valid_index = list(df.loc[~pd.isnull(df[task[k]])].index)
             N_sample = int(np.floor(len(valid_index) * para_dict['frac_train']))
             train_index = random.sample(valid_index, N_sample)
             test_index = list(set(valid_index).difference(set(train_index)))
+            
+            train_df[task[k]].loc[test_index] = np.nan
+            test_df[task[k]].loc[train_index] = np.nan
+    
+            train_mask = train_mask + np.array(~pd.isnull(train_df[task[k]])).astype(int)
+            test_mask = test_mask + np.array(~pd.isnull(test_df[task[k]])).astype(int)
 
-            train_df[task[k]].iloc[test_index] = np.nan
-            test_df[task[k]].iloc[train_index] = np.nan
+        train_df = train_df.loc[train_mask > 0]
+        test_df = test_df.loc[test_mask > 0]
     else:
         train_df = df
-
+    
+    # random sample max number if too many compounds:
+    if not max_cutoff is None and max_cutoff < train_df.shape[0]:
+        train_df = train_df.iloc[random.sample([num for num in range(len(train_df))], max_cutoff)]
     # prepare generator
     train_loader = DataLoader(feature_dict_dataset(feature_filename, train_df, smiles_field, id_field, task), 
                               batch_size = batch_size, collate_fn = collate_fn)
