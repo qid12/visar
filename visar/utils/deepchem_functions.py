@@ -1,5 +1,7 @@
 import deepchem as dc
 import pdb
+import numpy as np
+import pandas as pd
 
 from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras.layers import Dropout

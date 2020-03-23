@@ -21,6 +21,7 @@ class DNNx2_regressor(nn.Module):
                              out_features = self.layer_nodes[1])
         self.fc2 = nn.Linear(in_features = self.layer_nodes[1],
                              out_features = self.layer_nodes[2])
+        self.dropout_layer = nn.Dropout(p = self.dropouts)
 
         if self.GPU:
             self.cuda()
@@ -35,8 +36,8 @@ class DNNx2_regressor(nn.Module):
         
         X = torch.flatten(X, start_dim = 1)
 
-        out = F.dropout(F.relu(self.fc0(X)), p = self.dropouts)
-        out = F.dropout(F.relu(self.fc1(out)), p = self.dropouts)
+        out = self.dropout_layer(F.relu(self.fc0(X)))
+        out = self.dropout_layer(F.relu(self.fc1(out)))
         out = self.fc2(out)
 
         return out
