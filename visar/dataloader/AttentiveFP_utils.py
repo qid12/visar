@@ -52,7 +52,6 @@ def feature_dict_loader(para_dict, max_cutoff = None):
     smiles_field = para_dict['smiles_field']
     id_field = para_dict['id_field']
     task = para_dict['task_list']
-    model_flag = para_dict['model_flag']
     add_features = para_dict['add_features']
     batch_size = para_dict['batch_size']
     normalize = para_dict['normalize']
@@ -79,12 +78,9 @@ def feature_dict_loader(para_dict, max_cutoff = None):
         para_dict['mad_list'] = mad_list
         para_dict['ratio_list'] = ratio_list
 
-    if model_flag == 'ST':
-        df = extract_clean_dataset(task, MT_df, smiles_field = smiles_field, id_field = id_field)
-    elif model_flag == 'MT':
-        df = extract_clean_dataset(task, MT_df, add_features = add_features, smiles_field = smiles_field, id_field = id_field)
-        if not add_features is None:
-            task = task + add_features
+    df = extract_clean_dataset(task, MT_df, add_features = add_features, smiles_field = smiles_field, id_field = id_field)
+    if not add_features is None:
+        task = task + add_features
 
     # train test partition
     #if para_dict['frac_train'] < 1:

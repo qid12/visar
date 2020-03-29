@@ -74,9 +74,9 @@ def update_grid_chemical(batch_selected = None):
 def update_SAR_chemical(task_id ,chem_idx = 0):
     global SAR_cnt, compound_df, custom_df, task_df, MODE
     if radio_button_group.active == 0:
-        plot_SAR(compound_df, task_df, chem_idx, task_id, SAR_cnt, mode = MODE, cutoff = 10, n_features = 2048)
+        plot_SAR(compound_df, task_df, chem_idx, task_id, SAR_cnt, mode = MODE, n_features = 2048)
     elif radio_button_group.active == 1:
-        plot_SAR(custom_df, task_df, chem_idx, task_id, SAR_cnt, mode = MODE, cutoff = 10, n_features = 2048)
+        plot_SAR(custom_df, task_df, chem_idx, task_id, SAR_cnt, mode = MODE, n_features = 2048)
     sar_img = Div(text="<img src='VISAR_webapp/static/SAR_%d.png', height='200', width='300'>" % SAR_cnt)
     SAR_cnt += 1
     return sar_img
@@ -84,22 +84,22 @@ def update_SAR_chemical(task_id ,chem_idx = 0):
 def update_bicluster(K = None):
     global batch_df, task_df, compound_df, custom_df, MODE, CUSTOM_FLAG
 
-    if MODE == 'RobustMT':
+    if MODE == 'N+1 gradient':
         n_tasks = task_df.shape[1] - 1
-    elif MODE == 'ST' or MODE == 'baseline':
+    elif MODE == 'one-on-one' or MODE == 'single gradient':
         n_tasks = 1
-    elif MODE == 'MT':
+    elif MODE == 'N gradient':
         n_tasks = task_df.shape[1]
     elif MODE == 'AttentiveFP':
         n_tasks = sum([item[0:4] == 'avg_' for item in batch_df.columns.values])
     
-    if MODE == 'RobustMT' or MODE == 'AttentiveFP':
+    if MODE == 'N+1 gradient' or MODE == 'AttentiveFP' or MODE == 'N gradient':
         # cocluster of the minibatch predictive matrix
         X = preprocessing.scale(np.matrix(batch_df)[:,0:n_tasks])
         cocluster = SpectralCoclustering(n_clusters=K, random_state=0)
         cocluster.fit(X)
         batch_df['batch_label'] = cocluster.row_labels_
-    elif MODE == 'ST' or MODE == 'baseline':
+    elif MODE == 'one-on-one' or MODE == 'baseline':
         rank_x = batch_df[batch_df.columns[0]].rank().tolist()
         groups = pd.qcut(rank_x, K, duplicates='drop')
         batch_df['batch_label'] = groups.codes
@@ -118,14 +118,14 @@ def update_bicluster(K = None):
     compound_df['label_color'] = c
 
     #--------- generate heatmap dataframe -------
-    if MODE == 'RobustMT' or MODE == 'AttentiveFP':
+    if MODE == 'N+1 gradient' or MODE == 'AttentiveFP':
         X = preprocessing.scale(np.matrix(batch_df)[:,0:n_tasks])
         fit_data = X[np.argsort(cocluster.row_labels_)]
         fit_data = fit_data[:, np.argsort(cocluster.column_labels_)].T
         [min_value, max_value] = [fit_data.min().min(), fit_data.max().max()]
     
         # prepare dataframe structure for bokeh plot 
-        if MODE == 'RobustMT':
+        if MODE == 'N+1 gradient':
             rows = task_df.columns[0:-1]
         else:
             rows = [item[4:] for item in batch_df.columns.values if item[0:4] == 'avg_']
@@ -140,7 +140,7 @@ def update_bicluster(K = None):
         plot_dat.columns.name = 'label'
 
     
-    elif MODE == 'ST' or MODE == 'baseline':
+    elif MODE == 'one-on-one' or MODE == 'single gradient':
         X = np.asarray(np.matrix(batch_df)[:,0:n_tasks]).reshape(-1)
         order_x = np.asarray(np.argsort(X)).reshape(-1)
         fit_data = X[order_x].T
@@ -388,9 +388,9 @@ def update_database(attrname):
                                     max(max(compound_df['y']), max(custom_df['y']))]
 
     # setup global parameters
-    if MODE == 'RobustMT':
+    if MODE == 'N+1 gradient':
         N_TASK = task_df.shape[1] - 1
-    elif MODE == 'ST' or MODE == 'baseline':
+    elif MODE == 'one-on-one' or MODE == 'single gradient':
         N_TASK = 1
     elif MODE == 'AttentiveFP':
         N_TASK = sum([item[0:4] == 'avg_' for item in batch_df.columns.values])
@@ -412,9 +412,9 @@ def update_database(attrname):
                      'chembl_id', 'cid', 
                      'label_color','batch_label_color']]
 
-    if MODE == 'RobustMT':
+    if MODE == 'N+1 gradient' or MODE == 'N gradient':
         DEFAULT_TASKS = list(task_df.columns)
-    elif MODE == 'ST' or MODE == 'baseline':
+    elif MODE == 'one-on-one' or MODE == 'single gradient':
         DEFAULT_TASKS = [DEFAULT_TICKERS[2]]
     elif MODE == 'AttentiveFP':
         DEFAULT_TASKS = ['SHARE']
@@ -449,8 +449,8 @@ def update_database(attrname):
 
 ## setup visualization mode and data source
 file_prefix_input = TextInput(value='VISAR_webapp/data/RobustMT_Kinase_K12_', title='Prefix of the input data:')
-mode_select = Select(title='Mode of the model', value='RobustMT', 
-                     options=['RobustMT', 'MT', 'ST', 'baseline', 'AttentiveFP'])
+mode_select = Select(title='Mode of the model', value='N+1 gradient', 
+                     options=['N+1 gradient', 'N gradient', 'one-on-one', 'single gradient', 'AttentiveFP'])
 
 DATA_DIR = file_prefix_input.value
 compound_df = pd.read_csv(DATA_DIR + 'compound_df.csv', )
@@ -468,9 +468,9 @@ MODE = mode_select.value
                                 min(min(compound_df['y']), min(custom_df['y'])),
                                 max(max(compound_df['y']), max(custom_df['y']))]
 
-if MODE == 'RobustMT':
+if MODE == 'N+1 gradient':
     N_TASK = task_df.shape[1] - 1
-elif MODE == 'ST' or MODE == 'baseline':
+elif MODE == 'one-on-one' or MODE == 'single gradient':
     N_TASK = 1
 elif MODE == 'AttentiveFP':
     N_TASK = sum([item[0:4] == 'avg_' for item in batch_df.columns.values])
@@ -497,9 +497,9 @@ DEFAULT_CUSTOM_TICKERS = [x for x in custom_compound_df_columns
                      'chembl_id', 'cid',
                      'label_color','batch_label_color']]
 
-if MODE == 'RobustMT':
+if MODE == 'N+1 gradient':
     DEFAULT_TASKS = list(task_df.columns)
-elif MODE == 'ST' or MODE == 'baseline':
+elif MODE == 'one-on-one' or MODE == 'single gradient':
     DEFAULT_TASKS = [DEFAULT_TICKERS[2]]
 elif MODE == 'AttentiveFP':
     DEFAULT_TASKS = ['SHARE']

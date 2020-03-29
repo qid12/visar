@@ -49,11 +49,11 @@ def gradient2atom(smi, gradient, pos_cut = 3, neg_cut = -3, nBits = 2048):
             highlit_neg.append(i)
     return mol, highlit_pos, highlit_neg, atomsToUse
 
-def color_rendering(atomsToUse, cutoff = 10, clip = 0.5):
+def color_rendering(atomsToUse):
     cmap = cm.RdBu_r
     color_dict = {}
     #print(atomsToUse)
-    atomsToUse = (atomsToUse.flatten() - clip) / cutoff + 0.5
+    atomsToUse = atomsToUse.flatten()
     for i in range(len(atomsToUse)):
         color_dict[i] = cmap(atomsToUse[i])[0:3]
     return atomsToUse, color_dict
@@ -70,16 +70,16 @@ def moltosvg(mol,molSize=(450,200),kekulize=True,drawer=None,**kwargs):
 #-----------------------------------------
 
 def plot_SAR(compound_df, task_df, chem_idx, task_id, SAR_cnt, 
-             mode = 'RobustMT', cutoff = 10, clip = 0.5,
+             mode = 'N+1 gradient',
              n_features = 2048):
     smiles = compound_df['canonical_smiles'].iloc[chem_idx]
 
     grad_flag = True
-    if mode == 'RobustMT':
+    if mode == 'N+1 gradient':
         grad = task_df[task_id].tolist()
-    elif mode == 'ST':
+    elif mode == 'one-on-one':
         grad = task_df.iloc[chem_idx].tolist()
-    elif mode == 'baseline':
+    elif mode == 'single gradient':
         grad = task_df[task_id].tolist()
     elif mode == 'AttentiveFP':
         values =  np.array(task_df.iloc[chem_idx].tolist())
@@ -94,11 +94,12 @@ def plot_SAR(compound_df, task_df, chem_idx, task_id, SAR_cnt,
     else:
         mol = Chem.MolFromSmiles(smiles)
 
-    cutoff = np.ceil(np.max(np.array([np.absolute(np.min(atomsToUse)), np.max(atomsToUse)])))
-    clip = np.mean(atomsToUse)
-    #print(cutoff, clip)
+    # min-max normalization!!
+    #cutoff = np.ceil(np.max(np.array([np.absolute(np.min(atomsToUse)), np.max(atomsToUse)])))
+    #clip = np.mean(atomsToUse)
+    atomsToUse = (atomsToUse - np.min(atomsToUse)) / (np.max(atomsToUse) - np.min(atomsToUse))
 
-    atomsToUse, color_dict = color_rendering(atomsToUse, cutoff, clip)
+    atomsToUse, color_dict = color_rendering(atomsToUse)
 
     img = moltosvg(mol, molSize=(300,200), highlightAtoms=[m for m in range(len(atomsToUse))],
             highlightAtomColors = color_dict, highlightBonds=[])

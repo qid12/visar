@@ -49,7 +49,6 @@ def prepare_dataset(para_dict, max_cutoff = None):
     id_field = para_dict['id_field']
     task = para_dict['task_list']
     dataset_file = 'tmp.csv'
-    model_flag = para_dict['model_flag']
     add_features = para_dict['add_features']
     FP_type = para_dict['feature_type']
     normalize = para_dict['normalize']
@@ -75,12 +74,9 @@ def prepare_dataset(para_dict, max_cutoff = None):
         para_dict['mad_list'] = mad_list
         para_dict['ratio_list'] = ratio_list
 
-    if model_flag == 'ST':
-        df = extract_clean_dataset(task, MT_df, smiles_field = smiles_field, id_field = id_field)
-    elif model_flag == 'MT':
-        df = extract_clean_dataset(task, MT_df, add_features = add_features, smiles_field = smiles_field, id_field = id_field)
-        if not add_features is None:
-            task = task + add_features
+    df = extract_clean_dataset(task, MT_df, add_features = add_features, smiles_field = smiles_field, id_field = id_field)
+    if not add_features is None:
+        task = task + add_features
     
     if FP_type == 'Circular_2048':
         df.to_csv(dataset_file)
