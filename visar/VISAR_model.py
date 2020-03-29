@@ -326,6 +326,9 @@ class visar_model:
                     highlit_neg.append(i)
             highlit_neg_dict[item] = highlit_neg
             highlit_pos_dict[item] = highlit_pos
+
+            # min max normalization
+            atomsToUse = (atomsToUse - np.min(atomsToUse)) / (np.max(atomsToUse) - np.min(atomsToUse))
             atomsToUse_dict[item] = atomsToUse
 
         return mol, highlit_pos_dict, highlit_neg_dict, atomsToUse_dict

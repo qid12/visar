@@ -3,6 +3,8 @@ import numpy as np
 from sklearn.cluster.bicluster import SpectralCoclustering
 from sklearn import preprocessing
 from bokeh.palettes import Category20_20, Category20b_20
+from rdkit import Chem
+from rdkit.Chem import PandasTools
 import os
 
 FP_dim = {'Circular_2048': 2048,
@@ -74,4 +76,18 @@ def update_bicluster(batch_df, task_df, compound_df, mode = 'RobustMT', K = 5):
     compound_df['label_color'] = c
 
     return batch_df, task_df, compound_df
+
+#-------------------------------------
+def df2sdf(df, output_sdf_name, 
+           smiles_field = 'canonical_smiles', id_field = 'chembl_id', 
+           selected_batch = None):
+    '''
+    pack pd.DataFrame to sdf_file
+    '''
+    if not selected_batch is None:
+        df = df.loc[df['label'] == selected_batch]
+    PandasTools.AddMoleculeColumnToFrame(df,smiles_field,'ROMol')
+    PandasTools.WriteSDF(df, output_sdf_name, idName=id_field, properties=df.columns)
+
+    return
 
