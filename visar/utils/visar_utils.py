@@ -5,7 +5,11 @@ from sklearn import preprocessing
 from bokeh.palettes import Category20_20, Category20b_20
 from rdkit import Chem
 from rdkit.Chem import PandasTools
+import matplotlib.cm as cm
+from rdkit.Chem.Draw import rdMolDraw2D
+from rdkit.Chem import rdMolDescriptors, AllChem
 import os
+
 
 FP_dim = {'Circular_2048': 2048,
           'Circular_1024': 1024,
@@ -90,4 +94,96 @@ def df2sdf(df, output_sdf_name,
     PandasTools.WriteSDF(df, output_sdf_name, idName=id_field, properties=df.columns)
 
     return
+
+#--------------------------------------
+def gradient_based_atom_contribution(smiles_string, lig_pdb_fname, task_df):
+    raw_mol = Chem.MolFromPDBFile(lig_pdb_fname)
+    template = Chem.MolFromSmiles(smiles_string)
+    mol = AllChem.AssignBondOrdersFromTemplate(template, raw_mol)
+    
+    atomsToUse_dict = {}
+    gradient_dict = {}
+    for item in task_df.columns.tolist():
+        gradient_dict[item] = np.array(task_df[item].values)
+        gradient = gradient_dict[item]
+        # get the bit info of the Morgan fingerprint
+        bi = {}
+        fp = rdMolDescriptors.GetMorganFingerprintAsBitVect(mol, radius = 2, bitInfo=bi, nBits=nBits)
+        onbits = list(fp.GetOnBits())
+        # calculate the integrated weight
+        atomsToUse = np.zeros((len(mol.GetAtoms()),1))
+        for bitId in onbits:
+            atomID, radius = bi[bitId][0]
+            temp_atomsToUse = []
+            if radius > 0:
+                env = Chem.FindAtomEnvironmentOfRadiusN(mol, radius, atomID)
+                for b in env:
+                    temp_atomsToUse.append(mol.GetBondWithIdx(b).GetBeginAtomIdx())
+                    temp_atomsToUse.append(mol.GetBondWithIdx(b).GetEndAtomIdx())
+            else:
+                temp_atomsToUse.append(atomID)
+                env = None
+            temp_atomsToUse = list(set(temp_atomsToUse))
+            atomsToUse[temp_atomsToUse] += gradient[bitId]
+
+        # min max normalization
+        atomsToUse = (atomsToUse - np.min(atomsToUse)) / (np.max(atomsToUse) - np.min(atomsToUse))
+        atomsToUse_dict[item] = atomsToUse
+    return mol, atomsToUse_dict
+
+#-----------------------------------
+""" contribution from Hans de Winter """
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Chem.SaltRemover import SaltRemover
+
+#----------------------------------------------------
+def _InitialiseNeutralisationReactions():
+    patts= (
+        # Imidazoles
+        ('[n+;H]','n'),
+        # Amines
+        ('[N+;!H0]','N'),
+        # Carboxylic acids and alcohols
+        ('[$([O-]);!$([O-][#7])]','O'),
+        # Thiols
+        ('[S-;X1]','S'),
+        # Sulfonamides
+        ('[$([N-;X2]S(=O)=O)]','N'),
+        # Enamines
+        ('[$([N-;X2][C,N]=C)]','N'),
+        # Tetrazoles
+        ('[n-]','[nH]'),
+        # Sulfoxides
+        ('[$([S-]=O)]','S'),
+        # Amides
+        ('[$([N-]C=O)]','N'),
+        )
+    return [(Chem.MolFromSmarts(x),Chem.MolFromSmiles(y,False)) for x,y in patts]
+
+_reactions=None
+def NeutraliseCharges_RemoveSalt(smiles, reactions=None):
+    global _reactions
+    if reactions is None:
+        if _reactions is None:
+            _reactions=_InitialiseNeutralisationReactions()
+        reactions=_reactions
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is not None:
+        remover = SaltRemover()
+        mol, deleted = remover.StripMolWithDeleted(mol)
+        replaced = False
+        for i,(reactant, product) in enumerate(reactions):
+            while mol.HasSubstructMatch(reactant):
+                replaced = True
+                rms = AllChem.ReplaceSubstructs(mol, reactant, product)
+                mol = rms[0]
+        if replaced:
+            return (Chem.MolToSmiles(mol,True), True)
+        else:
+            return (smiles, False)
+    else:
+        return (None, False)
+
+
 

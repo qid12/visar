@@ -213,7 +213,7 @@ class deepchem_regressor(visar_model):
 
         print('------------- Prepare information for chemicals ------------------')
         # calculate transfer values and coordinates
-        model_transfer = self.get_transfer_model(n_layer = self.para_dict['n_layer'])
+        model_transfer = self.get_transfer_model(n_layer = self.para_dict['hidden_layer'])
         coord_values1, coord_values2 = self.get_coords(model_transfer, train_loader, custom_loader)
 
         # prediction for the training set

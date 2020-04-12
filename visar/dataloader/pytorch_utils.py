@@ -84,6 +84,16 @@ def compound_FP_loader(para_dict, max_cutoff = None):
             mad_list.append(mad)
             ratio_list.append(std/mad)
             MT_df[t] = (MT_df[t] - mean) / std
+        if not add_features is None:
+            for t in add_features:
+                mean = MT_df[t].mean(skipna = True)
+                mean_list.append(mean)
+                std = MT_df[t].std(skipna = True)
+                std_list.append(std)
+                mad = MT_df[t].mad(skipna = True)
+                mad_list.append(mad)
+                ratio_list.append(std/mad)
+                MT_df[t] = (MT_df[t] - mean) / std
         para_dict['mean_list'] = mean_list
         para_dict['std_list'] = std_list
         para_dict['mad_list'] = mad_list

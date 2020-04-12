@@ -40,7 +40,7 @@ class pytorch_DNN_model(visar_model):
             self.tasks = self.para_dict['task_list']
         else:
             self.n_tasks = len(self.para_dict['task_list']) + len(self.para_dict['add_features'])
-            self.tasks = self.para_dict['task_list']
+            self.tasks = self.para_dict['task_list'] + self.para_dict['add_features']
 
         self.n_features = FP_dim[self.para_dict['feature_type']]
         self.dropout = self.para_dict['dropouts']

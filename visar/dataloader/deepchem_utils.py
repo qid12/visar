@@ -69,6 +69,16 @@ def prepare_dataset(para_dict, max_cutoff = None):
             mad_list.append(mad)
             ratio_list.append(std/mad)
             MT_df[t] = (MT_df[t] - mean) / std
+        if not add_features is None:
+            for t in add_features:
+                mean = MT_df[t].mean(skipna = True)
+                mean_list.append(mean)
+                std = MT_df[t].std(skipna = True)
+                std_list.append(std)
+                mad = MT_df[t].mad(skipna = True)
+                mad_list.append(mad)
+                ratio_list.append(std/mad)
+                MT_df[t] = (MT_df[t] - mean) / std
         para_dict['mean_list'] = mean_list
         para_dict['std_list'] = std_list
         para_dict['mad_list'] = mad_list
@@ -153,6 +163,17 @@ def prepare_dataset(para_dict, max_cutoff = None):
     # train test split
     if para_dict['frac_train'] is None:
         return dataset, df, para_dict
+    if not max_cutoff is None:
+        splitter = dc.splits.RandomSplitter(dataset_file)
+        train_loader, test_loader = splitter.train_test_split(dataset, 
+                                                              seed=para_dict['rand_seed'], 
+                                                              frac_train = max_cutoff / len(df))
+        df = df.set_index(id_field)
+        train_df = df.loc[list(train_loader.ids)]
+        test_df = df.loc[list(test_loader.ids)]
+        train_df = train_df.reset_index()
+        test_df = test_df.reset_index()
+        return train_loader, test_loader , train_df, test_df, para_dict
     else:
         splitter = dc.splits.RandomSplitter(dataset_file)
         train_loader, test_loader = splitter.train_test_split(dataset, 
